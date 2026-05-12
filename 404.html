@@ -279,6 +279,65 @@ const EMAILS={
       <a href="https://rehovtu.github.io" style="display:block;background:#1A3A8F;color:#fff;text-align:center;padding:14px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;margin:16px 0">View Report →</a>
     `)
   }),
+
+  paymentConfirmed:(name,studentName,role)=>({
+    subject:`💰 Payment Confirmed — ${studentName} joined via your network!`,
+    html:emailTemplate('Payment Confirmed! 💰','#1B5E20',`
+      <p style="color:#374151;font-size:15px">Hi <strong>${name}</strong>,</p>
+      <p style="color:#374151;font-size:14px;line-height:1.6">Great news! A payment has been confirmed in your network:</p>
+      <div style="background:#f0fdf4;border-radius:12px;padding:20px;margin:16px 0;text-align:center">
+        <div style="font-size:32px;margin-bottom:8px">🎉</div>
+        <div style="font-weight:800;font-size:18px;color:#166534">${studentName}</div>
+        <div style="font-size:13px;color:#6b7280;margin-top:4px">joined via your referral network as ${role}</div>
+      </div>
+      <p style="color:#374151;font-size:14px;line-height:1.6">Your commission earnings have been updated. Log in to your dashboard to see your latest balance.</p>
+      <a href="${window.location.origin}" style="display:block;background:#1A3A8F;color:#fff;text-align:center;padding:14px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;margin:16px 0">View Dashboard →</a>
+    `)
+  }),
+
+  referralRegistered:(name,newMemberName,newRole)=>({
+    subject:`🎉 ${newMemberName} just registered via your link!`,
+    html:emailTemplate('New Team Member! 🎉','#4A148C',`
+      <p style="color:#374151;font-size:15px">Hi <strong>${name}</strong>,</p>
+      <p style="color:#374151;font-size:14px;line-height:1.6">Someone just joined RehoVTU using your referral link:</p>
+      <div style="background:#f5f0ff;border-radius:12px;padding:20px;margin:16px 0;text-align:center">
+        <div style="font-size:32px;margin-bottom:8px">👤</div>
+        <div style="font-weight:800;font-size:18px;color:#4A148C">${newMemberName}</div>
+        <div style="font-size:13px;color:#6b7280;margin-top:4px">registered as ${newRole}</div>
+      </div>
+      <p style="color:#374151;font-size:14px;line-height:1.6">They are now part of your team. Keep sharing your link to grow your network!</p>
+      <a href="${window.location.origin}" style="display:block;background:#1A3A8F;color:#fff;text-align:center;padding:14px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;margin:16px 0">View My Team →</a>
+    `)
+  }),
+
+  missedReport:(name,role,date,fineAmount)=>({
+    subject:`⚠️ Missed Report Fine — ₦${fineAmount.toLocaleString()} Deducted`,
+    html:emailTemplate('Missed Report Fine ⚠️','#c62828',`
+      <p style="color:#374151;font-size:15px">Hi <strong>${name}</strong>,</p>
+      <p style="color:#374151;font-size:14px;line-height:1.6">You did not submit your daily activity report on <strong>${date}</strong>. An automatic fine has been applied:</p>
+      <div style="background:#fff3f3;border-radius:12px;padding:20px;margin:16px 0;text-align:center">
+        <div style="font-size:32px;margin-bottom:8px">💸</div>
+        <div style="font-weight:900;font-size:24px;color:#c62828">-₦${fineAmount.toLocaleString()}</div>
+        <div style="font-size:13px;color:#6b7280;margin-top:4px">Missed daily report · ${date}</div>
+      </div>
+      <p style="color:#374151;font-size:14px;line-height:1.6">As a <strong>${role}</strong>, you must submit your daily report before your deadline every weekday. Continued misses will result in further deductions.</p>
+      <a href="${window.location.origin}" style="display:block;background:#c62828;color:#fff;text-align:center;padding:14px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;margin:16px 0">Submit Report Now →</a>
+    `)
+  }),
+
+  pendingApproval:(founderName,memberName,memberRole,memberCode)=>({
+    subject:`🔔 New Member Pending — ${memberName}`,
+    html:emailTemplate('New Member Pending Approval','#E65100',`
+      <p style="color:#374151;font-size:15px">Hi <strong>${founderName}</strong>,</p>
+      <p style="color:#374151;font-size:14px;line-height:1.6">A new member has registered and is pending your approval:</p>
+      <table style="width:100%;background:#fff8f0;border-radius:12px;padding:16px;margin:16px 0">
+        <tr><td style="padding:6px 0;font-size:13px;color:#6b7280">Name</td><td style="padding:6px 0;font-weight:700;text-align:right">${memberName}</td></tr>
+        <tr><td style="padding:6px 0;font-size:13px;color:#6b7280">Role</td><td style="padding:6px 0;font-weight:700;text-align:right">${memberRole}</td></tr>
+        <tr><td style="padding:6px 0;font-size:13px;color:#6b7280">Code</td><td style="padding:6px 0;font-weight:700;text-align:right">${memberCode}</td></tr>
+      </table>
+      <a href="${window.location.origin}" style="display:block;background:#1A3A8F;color:#fff;text-align:center;padding:14px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;margin:16px 0">Review & Approve →</a>
+    `)
+  }),
 };
 const fmt=n=>'₦'+(n||0).toLocaleString('en-NG');
 const fmtDate=s=>{if(!s)return'';try{return new Date(s).toLocaleDateString('en-NG',{day:'2-digit',month:'short',year:'numeric'});}catch{return s;}};
@@ -762,15 +821,25 @@ function TeamReg({users,saveUsers,onNavigate}){
       const ru=Object.values(users).find(u=>u.code===refCode);
       if(ru){
         const roleLabel=ROLE_LABELS[form.role]||form.role;
-        // We can't use pushNotif here (no access), so write directly to users
         const uplineNotif={msg:'🎉 '+form.name+' just registered as '+roleLabel+' via your link!',time:new Date().toISOString(),read:false};
         const updatedUpline={...users[ru.code],notifications:[uplineNotif,...(ru.notifications||[])]};
         await saveUsers({...users,[nc]:newMember,[ru.code]:updatedUpline});
+        // Email the referrer
+        if(ru.email){
+          const{subject,html}=EMAILS.referralRegistered(ru.name,form.name,roleLabel);
+          await sendEmail(ru.email,ru.name,subject,html);
+        }
       }
     }
-    // Send welcome email
+    // Send welcome email to new member
     const{subject,html}=EMAILS.welcome(form.name,nc,ROLE_LABELS[form.role],form.password);
     await sendEmail(emailLower,form.name,subject,html);
+    // Notify founder by email of new registration
+    const founderAcc=Object.values(users).find(u=>u.role==='founder')||users['FOUNDER'];
+    if(founderAcc?.email){
+      const{subject:fSubj,html:fHtml}=EMAILS.pendingApproval(founderAcc.name||'Founder',form.name,ROLE_LABELS[form.role]||form.role,nc);
+      await sendEmail(founderAcc.email,founderAcc.name||'Founder',fSubj,fHtml);
+    }
   };
   const newCode=sessionStorage.getItem('new_member_code')||'';
   if(done)return(
@@ -2733,14 +2802,20 @@ function FounderPanel({appState}){
       if(!memberCode||depth>5) return;
       const member=users[memberCode];
       if(!member) return;
-      const roleLabel=ROLE_LABELS[member.role]||member.role;
       await pushNotif(memberCode,`💰 Payment confirmed: ${su.name} joined via your network. Your earnings have been updated.`);
-      // Walk up the tree
+      if(member.email){
+        const{subject,html}=EMAILS.paymentConfirmed(member.name,su.name,ROLE_LABELS[su.role]||su.role);
+        await sendEmail(member.email,member.name,subject,html);
+      }
       if(member.ref) await notifyChain(member.ref, depth+1);
     };
     if(su.ref) await notifyChain(su.ref);
-    // Also notify Founder
     await pushNotif('FOUNDER',`💰 Payment confirmed: ${su.name} signed up. Referred by: ${su.ref||'Direct'}.`);
+    const founderU=users['FOUNDER'];
+    if(founderU?.email){
+      const{subject,html}=EMAILS.paymentConfirmed(founderU.name||'Founder',su.name,ROLE_LABELS[su.role]||su.role);
+      await sendEmail(founderU.email,founderU.name||'Founder',subject,html);
+    }
   };
   const rejectSignup=async id=>{
     const ns=signups.map(s=>s.id===id?{...s,founderApproved:false,pfcStatus:'Rejected'}:s);
@@ -3725,7 +3800,20 @@ function useAppState(){
         changed=true;
       }
     });
-    if(changed){saveUsers(nu);localStorage.setItem(dedKey,'1');}
+    if(changed){
+      // Send missed report emails to affected members
+      members.forEach(async u=>{
+        if(!DEDUCTIONS[u.role])return;
+        const submitted=reports.some(r=>r.userCode===u.code&&r.date===todayStr&&r.type==='daily');
+        if(!submitted&&u.email){
+          const ded=DEDUCTIONS[u.role].daily||500;
+          const{subject,html}=EMAILS.missedReport(u.name,ROLE_LABELS[u.role]||u.role,todayStr,ded);
+          await sendEmail(u.email,u.name,subject,html);
+        }
+      });
+      saveUsers(nu);
+      localStorage.setItem(dedKey,'1');
+    }
   },[users,reports]);
   return{screen,setScreen,user,setUser,users,saveUsers,signups,saveSignups,settings,saveSettings,broadcasts,saveBroadcasts,dms,saveDms,grp,saveGrp,reports,saveReports,pushNotif};
 }
