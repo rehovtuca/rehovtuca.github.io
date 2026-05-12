@@ -48,7 +48,7 @@ const LOGO_B64='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAb8AAAG/CAMAAAD/zS
 
 // ── CONSTANTS ──────────────────────────────────────────────────────────────
 const ROLES=['ambassador','cc','pm','pfc','founder'];
-const ROLE_LABELS={ambassador:'Ambassador',cc:'Campus Coordinator',pm:'State Project Manager',pfc:'Project & Finance Coordinator',founder:'Founder'};
+const ROLE_LABELS={ambassador:'Ambassador',cc:'Campus Coordinator',pm:'State Project Manager',pfc:'Project & Finance Coordinator',founder:'Founder',hr:'HR Staff'};
 const ROLE_SHORT={ambassador:'AM',cc:'CC',pm:'PM',pfc:'PF',founder:'FD'};
 const ROLE_COLORS={ambassador:'#1B5E20',cc:'#E65100',pm:'#4A148C',pfc:'#1A1A2E',founder:'#1A3A8F'};
 const ROLE_BG={ambassador:'#e8f5e9',cc:'#fbe9e7',pm:'#f3e5f5',pfc:'#e8eaf6',founder:'#e3f0ff'};
@@ -98,10 +98,11 @@ const DB={
   async get(k){
     try{
       const ctrl=new AbortController();
-      const tid=setTimeout(()=>ctrl.abort(),4000);
+      const tid=setTimeout(()=>ctrl.abort(),4000); // 4s timeout
       const r=await fetch(`${FB_URL}/${encodeURIComponent(k)}`,{
         headers:{'Content-Type':'application/json'},
-        cache:'no-store',signal:ctrl.signal
+        cache:'no-store',
+        signal:ctrl.signal
       });
       clearTimeout(tid);
       if(r.status===404)return this._lsGet(k);
@@ -110,7 +111,7 @@ const DB={
       const val=this._fromFS(d.fields);
       if(val!==null){this._lsSet(k,val);return val;}
     }catch{}
-    return this._lsGet(k);
+    return this._lsGet(k); // fallback to localStorage
   },
 
   async set(k,val){
@@ -659,6 +660,8 @@ function StudentReg({settings,saveSignups,signups,onNavigate}){
   const refCode=sessionStorage.getItem('ref_code')||'';
   const [form,setForm]=useState({name:'',phone:'',email:'',siteName:'',ref:refCode});
   const [err,setErr]=useState('');const [done,setDone]=useState(false);
+  const [step,setStep]=useState('consent'); // consent | form
+  const [consentChecked,setConsentChecked]=useState(false);
   const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
   const s=settings||DEFAULT_SETTINGS;
   const submit=async()=>{
@@ -704,17 +707,29 @@ function StudentReg({settings,saveSignups,signups,onNavigate}){
 // ── TEAM REG ───────────────────────────────────────────────────────────────
 function TeamReg({users,saveUsers,onNavigate}){
   const refCode=sessionStorage.getItem('ref_code')||'';
+  // Resolve refUser reactively — users may load AFTER component mounts
   const refUser=refCode?Object.values(users).find(u=>u.code===refCode):null;
-  // Role is determined by who shared the link — locked if via ref link
   const autoRole=refUser?DOWNLINE[refUser.role]:'';
-  const roleLocked=!!autoRole; // lock role if came via a ref link
+  const roleLocked=!!autoRole;
   const [form,setForm]=useState({
     name:'',phone:'',email:'',password:'',state:'',occupation:'',
     accName:'',accNum:'',bank:'',
     secQ:"What is your mother's maiden name?",secA:'',
-    role:autoRole||'ambassador',ref:refCode
+    role:'ambassador',ref:refCode
   });
+  // When users data loads and we find the refUser, update role + ref
+  useEffect(()=>{
+    if(refCode&&Object.keys(users).length>0){
+      const ru=Object.values(users).find(u=>u.code===refCode);
+      if(ru){
+        const ar=DOWNLINE[ru.role]||'ambassador';
+        setForm(f=>({...f,role:ar,ref:refCode}));
+      }
+    }
+  },[users,refCode]);
   const [err,setErr]=useState('');const [done,setDone]=useState(false);
+  const [consented,setConsented]=useState(false);
+  const [showConsent,setShowConsent]=useState(true);
   const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
   const submit=async()=>{
     if(!form.name||!form.phone||!form.email||!form.password){setErr('Name, phone, email and password are required');return;}
@@ -727,6 +742,7 @@ function TeamReg({users,saveUsers,onNavigate}){
     const newMember={
       id:nc,code:nc,
       ...form,
+      ref:refCode||form.ref||'', // always use refCode from sessionStorage
       email:emailLower,
       joined:TODAY,
       approved:true,      // auto-approved — can login immediately
@@ -740,8 +756,18 @@ function TeamReg({users,saveUsers,onNavigate}){
     };
     await saveUsers({...users,[nc]:newMember});
     setDone(true);
-    // Store code for success screen
     sessionStorage.setItem('new_member_code',nc);
+    // Notify the person whose link was used
+    if(refCode){
+      const ru=Object.values(users).find(u=>u.code===refCode);
+      if(ru){
+        const roleLabel=ROLE_LABELS[form.role]||form.role;
+        // We can't use pushNotif here (no access), so write directly to users
+        const uplineNotif={msg:'🎉 '+form.name+' just registered as '+roleLabel+' via your link!',time:new Date().toISOString(),read:false};
+        const updatedUpline={...users[ru.code],notifications:[uplineNotif,...(ru.notifications||[])]};
+        await saveUsers({...users,[nc]:newMember,[ru.code]:updatedUpline});
+      }
+    }
     // Send welcome email
     const{subject,html}=EMAILS.welcome(form.name,nc,ROLE_LABELS[form.role],form.password);
     await sendEmail(emailLower,form.name,subject,html);
@@ -760,6 +786,108 @@ function TeamReg({users,saveUsers,onNavigate}){
           You can now log in immediately with your email and password. Screenshot your code above!
         </div>
         <Btn full onClick={()=>onNavigate('login')}>Login Now →</Btn>
+      </div>
+    </div>
+  );
+  // Brief summary shown before form
+  if(step==='consent')return(
+    <div style={{minHeight:'100vh',background:'var(--bg)',padding:'20px 16px',display:'flex',alignItems:'center',justifyContent:'center'}}>
+      <div style={{maxWidth:460,width:'100%',background:'#fff',borderRadius:20,padding:24,boxShadow:'var(--shadow)'}}>
+        <div style={{fontWeight:900,fontSize:18,color:'var(--blue)',marginBottom:4}}>📋 Before You Apply</div>
+        <div style={{fontSize:13,color:'var(--muted)',marginBottom:16}}>A quick summary of what joining RehoVTU means</div>
+        {[
+          ['💰','Earn commissions','Based on your role — from ₦500 per signup (Ambassador) up to ₦2,500 per activation (PFC).'],
+          ['📋','Submit daily reports','Every weekday before your deadline. Missing a report incurs an automatic fine.'],
+          ['👥','Build your team','Recruit and activate members below you to unlock higher override earnings.'],
+          ['🔒','Keep it confidential','Commission structures, member data and business strategies are private. Do not share.'],
+          ['⚠️','Zero tolerance for fraud','Fake signups or misrepresentation leads to immediate removal without payout.'],
+        ].map(([icon,title,desc])=>(
+          <div key={title} style={{display:'flex',gap:12,marginBottom:14,alignItems:'flex-start'}}>
+            <span style={{fontSize:20,flexShrink:0}}>{icon}</span>
+            <div>
+              <div style={{fontWeight:700,fontSize:13,color:'var(--text)'}}>{title}</div>
+              <div style={{fontSize:12,color:'var(--muted)',lineHeight:1.5}}>{desc}</div>
+            </div>
+          </div>
+        ))}
+        <div style={{background:'#f5f5f5',borderRadius:10,padding:12,marginBottom:16,fontSize:12,color:'var(--muted)',lineHeight:1.6}}>
+          By continuing, you agree to RehoVTU rules, report obligations, and non-disclosure of internal information.
+        </div>
+        <Btn full onClick={()=>setStep('form')}>I Understand — Continue →</Btn>
+        <div style={{textAlign:'center',marginTop:10}}>
+          <button onClick={()=>onNavigate('landing')} style={{background:'none',border:'none',color:'var(--muted)',fontSize:13,cursor:'pointer'}}>← Back</button>
+        </div>
+      </div>
+    </div>
+  );
+  const roleEarn={ambassador:'500 per student signup, 700 above 50 signups',cc:'800 per Ambassador activated + override earnings',pm:'1,200 per CC activated + override earnings',pfc:'2,500 per PM activated + override earnings'};
+  const roleTeam={ambassador:'No minimum team size',cc:'Minimum 5 Ambassadors',pm:'Minimum 5 Campus Coordinators',pfc:'Minimum 5 Project Managers'};
+  const roleQuota={ambassador:'100 student signups per quarter',cc:'2,000 student signups per quarter',pm:'10,000 student signups per quarter',pfc:'50,000 student signups per quarter'};
+  const roleDeadline={ambassador:'7:00 PM daily',cc:'7:30 PM daily',pm:'8:00 PM daily',pfc:'9:00 PM daily'};
+  const roleFine={ambassador:'500',cc:'1,000',pm:'2,000',pfc:'3,000'};
+  const r=form.role||'ambassador';
+  if(showConsent)return(
+    <div style={{minHeight:'100vh',background:'var(--bg)',padding:'16px',overflowY:'auto'}}>
+      <div style={{maxWidth:480,margin:'0 auto'}}>
+
+        <div style={{background:'var(--blue)',borderRadius:18,padding:'18px 18px 14px',marginBottom:12,color:'#fff'}}>
+          <div style={{fontWeight:900,fontSize:17,marginBottom:2}}>📋 Member Agreement</div>
+          <div style={{fontSize:12,opacity:.8}}>Read before registering as {ROLE_LABELS[r]}</div>
+        </div>
+
+        <div style={{background:'#fff',borderRadius:16,padding:16,marginBottom:10,boxShadow:'var(--shadow)'}}>
+          <div style={{fontWeight:800,fontSize:14,color:'var(--blue)',marginBottom:8}}>📘 Your Role — {ROLE_LABELS[r]}</div>
+          <div style={{fontSize:13,color:'var(--text)',lineHeight:1.8}}>
+            <b>Earnings:</b> {'₦'}{roleEarn[r]}<br/>
+            <b>Team Requirement:</b> {roleTeam[r]}<br/>
+            <b>Sales Quota:</b> {roleQuota[r]}<br/>
+            <b>Report Deadline:</b> {roleDeadline[r]}<br/>
+            <b>Missed Report Fine:</b> {'₦'}{roleFine[r]} per day
+          </div>
+        </div>
+
+        <div style={{background:'#fff',borderRadius:16,padding:16,marginBottom:10,boxShadow:'var(--shadow)'}}>
+          <div style={{fontWeight:800,fontSize:14,color:'#E65100',marginBottom:8}}>📜 Rules and Regulations</div>
+          <div style={{fontSize:13,color:'var(--text)',lineHeight:1.8}}>
+            1. Submit daily reports before your role deadline every weekday.<br/>
+            2. Missing a report incurs an automatic fine deducted from earnings.<br/>
+            3. You are responsible for all members you recruit.<br/>
+            4. Fake signups lead to immediate termination without payout.<br/>
+            5. Payment disputes must be raised within 7 days of payout date.<br/>
+            6. Earnings are paid monthly after Founder verification.
+          </div>
+        </div>
+
+        <div style={{background:'#fff',borderRadius:16,padding:16,marginBottom:10,boxShadow:'var(--shadow)'}}>
+          <div style={{fontWeight:800,fontSize:14,color:'#c62828',marginBottom:8}}>{'💸'} Fine Schedule</div>
+          <div style={{fontSize:13,color:'var(--text)',lineHeight:1.8}}>
+            <b>Ambassador:</b> {'₦'}500 / day missed<br/>
+            <b>Campus Coordinator:</b> {'₦'}1,000 / day missed<br/>
+            <b>Project Manager:</b> {'₦'}2,000 / day missed<br/>
+            <b>PFC:</b> {'₦'}3,000 / day missed
+          </div>
+        </div>
+
+        <div style={{background:'#fff',borderRadius:16,padding:16,marginBottom:10,boxShadow:'var(--shadow)'}}>
+          <div style={{fontWeight:800,fontSize:14,color:'#4A148C',marginBottom:8}}>🔒 Non-Disclosure Agreement</div>
+          <div style={{fontSize:13,color:'var(--text)',lineHeight:1.8}}>
+            By joining RehoVTU you agree to keep all internal commission structures, member data, referral networks, business strategies and Founder contact information strictly confidential. You may not share or disclose any proprietary information to any third party during or after your membership. Breach of this NDA may result in legal action and forfeiture of all earnings.
+          </div>
+        </div>
+
+        <div style={{background:'#fff',borderRadius:16,padding:16,marginBottom:14,boxShadow:'var(--shadow)'}}>
+          <label style={{display:'flex',gap:10,alignItems:'flex-start',cursor:'pointer'}}>
+            <input type="checkbox" checked={consented} onChange={e=>setConsented(e.target.checked)} style={{marginTop:3,width:18,height:18,accentColor:'var(--blue)',cursor:'pointer',flexShrink:0}}/>
+            <span style={{fontSize:13,color:'var(--text)',lineHeight:1.6}}>I have read and understood the Role Workbook, Rules and Regulations, Fine Schedule and Non-Disclosure Agreement. I agree to all RehoVTU policies.</span>
+          </label>
+        </div>
+
+        <Btn full onClick={()=>{if(!consented){alert('Please read and tick the agreement to continue.');return;}setShowConsent(false);}} style={{marginBottom:10}}>
+          I Agree — Proceed to Register
+        </Btn>
+        <div style={{textAlign:'center'}}>
+          <button onClick={()=>onNavigate('landing')} style={{background:'none',border:'none',color:'var(--muted)',fontSize:13,cursor:'pointer'}}>Back</button>
+        </div>
       </div>
     </div>
   );
@@ -957,7 +1085,23 @@ function RoleIntroCard({role}){
 }
 
 // ── HOME TAB ───────────────────────────────────────────────────────────────
-function HomeTab({user,users,signups,reports,settings}){
+function BannerBar({broadcasts,role}){
+  const active=broadcasts.filter(b=>!b.role||b.role==='all'||b.role===role);
+  if(!active.length) return null;
+  return(
+    <div style={{marginBottom:12}}>
+      {active.slice(0,3).map((b,i)=>(
+        <div key={i} style={{background:b.urgent?'#c62828':'var(--blue)',color:'#fff',borderRadius:12,padding:'10px 14px',marginBottom:6,fontSize:13,lineHeight:1.5}}>
+          {b.urgent&&<span style={{fontWeight:900,marginRight:6}}>🚨</span>}
+          <span style={{fontWeight:700}}>{b.title||'Announcement'}: </span>
+          {b.message||b.body||b.text||''}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function HomeTab({user,users,signups,reports,settings,broadcasts}){
   const {start}=getMonthRange();
   const s=settings||DEFAULT_SETTINGS;
 
@@ -1032,6 +1176,7 @@ function HomeTab({user,users,signups,reports,settings}){
 
   return(
     <div style={{display:'flex',flexDirection:'column',gap:10,paddingBottom:16}}>
+      {broadcasts&&<BannerBar broadcasts={broadcasts} role={user.role}/>}
       <DateCountdownCard/>
 
       {/* ── AMBASSADOR DASHBOARD ── */}
@@ -1310,6 +1455,7 @@ function MeetingTab({user,users,saveUsers}){
   // Role rooms (instant join)
   const roleRooms={
     founder:['rehovtu-all','rehovtu-pfc','rehovtu-pm','rehovtu-cc','rehovtu-ambassador'],
+    hr:['rehovtu-all','rehovtu-pfc','rehovtu-pm','rehovtu-cc','rehovtu-ambassador'],
     pfc:['rehovtu-pfc','rehovtu-all'],
     pm:['rehovtu-pm','rehovtu-all'],
     cc:['rehovtu-cc','rehovtu-all'],
@@ -1541,18 +1687,40 @@ function MeetingTab({user,users,saveUsers}){
 function GrpTab({user,grp,saveGrp,users}){
   const [msg,setMsg]=useState('');
   const endRef=useRef();
-  useEffect(()=>{endRef.current?.scrollIntoView({behavior:'smooth'});},[grp]);
+  // Role channel: each role sees only their own channel + founder sees all
+  const isFounder=user.role==='founder';
+  const myRole=user.role;
+  const channels=isFounder
+    ?['pfc','pm','cc','ambassador']
+    :[myRole];
+  const [channel,setChannel]=useState(isFounder?'pfc':myRole);
+  const filtered=grp.filter(m=>m.channel===channel||(m.channel===undefined&&channel===myRole));
+  useEffect(()=>{endRef.current?.scrollIntoView({behavior:'smooth'});},[filtered,channel]);
   const send=async()=>{
     if(!msg.trim())return;
-    const m={id:'g_'+Date.now(),userCode:user.code,userName:user.name,userRole:user.role,text:msg.trim(),time:new Date().toISOString()};
+    const m={id:'g_'+Date.now(),userCode:user.code,userName:user.name,userRole:user.role,channel:channel,text:msg.trim(),time:new Date().toISOString()};
     setMsg('');
     await saveGrp([...grp,m]);
   };
   return(
     <div style={{display:'flex',flexDirection:'column',height:'calc(100vh - 220px)',minHeight:300}}>
+      {isFounder&&(
+        <div style={{display:'flex',gap:6,padding:'8px 0',overflowX:'auto',flexShrink:0}}>
+          {channels.map(c=>(
+            <button key={c} onClick={()=>setChannel(c)} style={{padding:'5px 14px',borderRadius:20,border:'none',background:channel===c?'var(--blue)':'#f0f0f0',color:channel===c?'#fff':'var(--text)',fontWeight:700,fontSize:12,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>
+              {ROLE_LABELS[c]}
+            </button>
+          ))}
+        </div>
+      )}
+      {!isFounder&&(
+        <div style={{fontSize:12,color:'var(--muted)',padding:'4px 0 8px',fontWeight:600}}>
+          {ROLE_LABELS[myRole]} Group Chat
+        </div>
+      )}
       <div style={{flex:1,overflowY:'auto',display:'flex',flexDirection:'column',gap:8,paddingBottom:8}} className="hide-scroll">
-        {grp.length===0&&<div style={{textAlign:'center',color:'var(--muted)',marginTop:40,fontSize:14}}>No messages yet. Say hi! 👋</div>}
-        {grp.map(m=>{
+        {filtered.length===0&&<div style={{textAlign:'center',color:'var(--muted)',marginTop:40,fontSize:14}}>No messages yet. Say hi! 👋</div>}
+        {filtered.map(m=>{
           const isMe=m.userCode===user.code;
           return(
             <div key={m.id} style={{display:'flex',gap:8,flexDirection:isMe?'row-reverse':'row',alignItems:'flex-end'}}>
@@ -2363,13 +2531,23 @@ function RecTab({user,users,saveUsers,pushNotif}){
   );
 }
 
-function ConfirmTab({signups,saveSignups,pushNotif}){
+function ConfirmTab({signups,saveSignups,pushNotif,users,user}){
   const pending=signups.filter(s=>s.pfcStatus==='Pending');
   const confirm=async id=>{
     const ns=signups.map(s=>s.id===id?{...s,pfcStatus:'Confirmed'}:s);
     await saveSignups(ns);
     const su=signups.find(s=>s.id===id);
-    if(su?.ref)await pushNotif(su.ref,`Sign-up from ${su.name} confirmed!`);
+    if(!su)return;
+    // Full upline payment notification tree
+    const notifyUp=async(code,depth=0)=>{
+      if(!code||depth>5)return;
+      const m=(users||{})[code];
+      if(!m)return;
+      await pushNotif(code,`💰 Payment confirmed: ${su.name} joined via your network!`);
+      if(m.ref)await notifyUp(m.ref,depth+1);
+    };
+    if(su.ref)await notifyUp(su.ref);
+    await pushNotif('FOUNDER',`💰 Payment confirmed: ${su.name}. PFC: ${user?.name||''}. Ref chain notified.`);
   };
   const reject=async id=>{await saveSignups(signups.map(s=>s.id===id?{...s,pfcStatus:'Rejected'}:s));};
   return(
@@ -2507,7 +2685,8 @@ function FounderPanel({appState}){
   const [moveTarget,setMoveTarget]=useState(null);       // after resign: {user, replacementCode}
   const {start}=getMonthRange();
 
-  const allApproved=Object.values(users).filter(u=>u.approved&&u.id!=='FOUNDER'&&!u.resigned);
+  const allApproved=Object.values(users).filter(u=>u.approved&&u.id!=='FOUNDER'&&!u.resigned&&u.role!=='hr');
+  const hrStaff=Object.values(users).filter(u=>u.role==='hr'&&!u.resigned);
   const thisMonthSu=signups.filter(s=>s.date>=start);
   const confirmed=signups.filter(s=>s.pfcStatus==='Confirmed');
   const built=signups.filter(s=>s.siteBuilt);
@@ -2548,16 +2727,20 @@ function FounderPanel({appState}){
     const ns=signups.map(s=>s.id===id?{...s,founderApproved:true,pfcStatus:'Confirmed'}:s);
     await saveSignups(ns);
     const su=signups.find(s=>s.id===id);
-    if(!su)return;
-    const notifyChain=async(code,depth=0)=>{
-      if(!code||depth>5)return;
-      const m=users[code];
-      if(!m)return;
-      await pushNotif(code,`💰 Payment confirmed: ${su.name} joined via your network!`);
-      if(m.ref)await notifyChain(m.ref,depth+1);
+    if(!su) return;
+    // Notify the full upline tree of the confirmed payment
+    const notifyChain=async(memberCode, depth=0)=>{
+      if(!memberCode||depth>5) return;
+      const member=users[memberCode];
+      if(!member) return;
+      const roleLabel=ROLE_LABELS[member.role]||member.role;
+      await pushNotif(memberCode,`💰 Payment confirmed: ${su.name} joined via your network. Your earnings have been updated.`);
+      // Walk up the tree
+      if(member.ref) await notifyChain(member.ref, depth+1);
     };
-    if(su.ref)await notifyChain(su.ref);
-    await pushNotif('FOUNDER',`💰 Payment confirmed: ${su.name}. Ref: ${su.ref||'Direct'}.`);
+    if(su.ref) await notifyChain(su.ref);
+    // Also notify Founder
+    await pushNotif('FOUNDER',`💰 Payment confirmed: ${su.name} signed up. Referred by: ${su.ref||'Direct'}.`);
   };
   const rejectSignup=async id=>{
     const ns=signups.map(s=>s.id===id?{...s,founderApproved:false,pfcStatus:'Rejected'}:s);
@@ -2912,6 +3095,17 @@ function FounderPanel({appState}){
   // ── OVERVIEW ──
   const Overview=()=>(
     <div style={{display:'flex',flexDirection:'column',gap:10,paddingBottom:16}}>
+      {hrStaff.length>0&&(
+        <div style={{background:'#e8f5e9',borderRadius:14,padding:14,border:'1.5px solid #a5d6a7'}}>
+          <div style={{fontWeight:800,fontSize:14,color:'#1b5e20',marginBottom:8}}>{'👔'} HR Staff ({hrStaff.length})</div>
+          {hrStaff.map(h=>(
+            <div key={h.code} style={{display:'flex',justifyContent:'space-between',fontSize:13,padding:'5px 0',borderBottom:'1px solid #c8e6c9'}}>
+              <span style={{fontWeight:700}}>{h.name} <span style={{color:'var(--muted)',fontWeight:400,fontSize:11}}>({h.code})</span></span>
+              <span style={{color:'#1b5e20',fontWeight:700,fontSize:11}}>Active</span>
+            </div>
+          ))}
+        </div>
+      )}
       <DateCountdownCard/>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8}}>
         <StatCard value={signups.length} label="Total Signups" color="var(--blue)"/>
@@ -3049,8 +3243,13 @@ function FounderPanel({appState}){
     return(
       <div>
         <div style={{background:'#fff',borderRadius:14,padding:'16px',marginBottom:12,boxShadow:'var(--shadow)'}}>
-          <div style={{fontWeight:700,marginBottom:12}}>📢 Send Broadcast</div>
+          <div style={{fontWeight:700,marginBottom:12}}>📢 Send Broadcast / Banner</div>
           {ok&&<Alrt type="success" msg={ok}/>}
+          <Inp label="Banner Title" value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Important Update"/>
+          <label style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,fontSize:13,cursor:'pointer'}}>
+            <input type="checkbox" checked={urgent} onChange={e=>setUrgent(e.target.checked)} style={{width:16,height:16,accentColor:'#c62828'}}/>
+            <span style={{color:'#c62828',fontWeight:700}}>Mark as Urgent (shows red banner)</span>
+          </label>
           <Sel label="Send to" value={role} onChange={e=>setRole(e.target.value)}
             options={[{v:'all',l:'All Members'},...ROLES.filter(r=>r!=='founder').map(r=>({v:r,l:ROLE_LABELS[r]}))]}/>
           <textarea value={msg} onChange={e=>setMsg(e.target.value)} placeholder="Your message..." rows={3}
@@ -3090,16 +3289,17 @@ function FounderPanel({appState}){
   const [showManualAdd,setShowManualAdd]=useState(false);
 
   const ManualAddModal=()=>{
-    const [form,setForm]=useState({name:'',phone:'',email:'',password:'',state:'',role:'ambassador',ref:'',accName:'',accNum:'',bank:''});
+    const [form,setForm]=useState({name:'',phone:'',email:'',password:'',state:'',role:'ambassador',ref:'',accName:'',accNum:'',bank:'',isHR:false});
     const [ok,setOk]=useState('');const [err,setErr]=useState('');
     const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
     const add=async()=>{
       if(!form.name||!form.email||!form.password){setErr('Name, email and password required');return;}
       if(Object.values(users).find(u=>u.email===form.email)){setErr('Email already exists');return;}
-      const nc=genCode(form.role,users);
+      const finalRole=form.isHR?'hr':form.role;
+      const nc=finalRole==='hr'?('HR'+String(Date.now()).slice(-4)):genCode(finalRole,users);
       const newMember={
         id:nc,code:nc,name:form.name,phone:form.phone,email:form.email,
-        password:form.password,state:form.state,role:form.role,
+        password:form.password,state:form.state,role:finalRole,
         referredBy:form.ref||'',accName:form.accName,accNum:form.accNum,bank:form.bank,
         joined:TODAY,approved:true,avatar:'',notifications:[
           {msg:`Welcome to RehoVTU! Your code is ${nc}. Login with your email and password.`,time:new Date().toISOString(),read:false}
@@ -3108,13 +3308,20 @@ function FounderPanel({appState}){
       await saveUsers({...users,[nc]:newMember});
       setOk(`✅ Member added!\nCode: ${nc}\nPassword: ${form.password}\n\nShare these with ${form.name}`);
       alert(`✅ Member Added Successfully!\n\nName: ${form.name}\nCode: ${nc}\nEmail: ${form.email}\nPassword: ${form.password}\n\nShare these login details with them now.`);
-      setForm({name:'',phone:'',email:'',password:'',state:'',role:'ambassador',ref:'',accName:'',accNum:'',bank:''});
+      setForm({name:'',phone:'',email:'',password:'',state:'',role:'ambassador',ref:'',accName:'',accNum:'',bank:'',isHR:false});
     };
     return(
       <Modal title="➕ Add Member Manually" onClose={()=>setShowManualAdd(false)}>
         <div style={{background:'#fff8f0',border:'1px solid var(--gold)',borderRadius:10,padding:'10px 12px',marginBottom:14,fontSize:12,color:'#92400e'}}>
           ⚡ Use this to add members directly — bypasses registration. Great when Supabase is down or someone can't register.
         </div>
+        <label style={{display:'flex',alignItems:'center',gap:8,marginBottom:12,padding:'10px 12px',background:form.isHR?'#e8f5e9':'#f5f5f5',borderRadius:10,cursor:'pointer',border:form.isHR?'1.5px solid #1b5e20':'1.5px solid transparent'}}>
+          <input type="checkbox" checked={form.isHR||false} onChange={e=>setForm(f=>({...f,isHR:e.target.checked,role:e.target.checked?'hr':f.role}))} style={{width:16,height:16,accentColor:'#1b5e20'}}/>
+          <div>
+            <div style={{fontWeight:700,fontSize:13,color:'#1b5e20'}}>Register as HR Staff</div>
+            <div style={{fontSize:11,color:'var(--muted)'}}>HR can manage comms, meetings and reports — no earnings access</div>
+          </div>
+        </label>
         {err&&<Alrt type="error" msg={err} onClose={()=>setErr('')}/>}
         {ok&&<Alrt type="success" msg={ok}/>}
         <Inp label="Full Name" value={form.name} onChange={set('name')} required/>
@@ -3225,9 +3432,9 @@ function MemberDashboard({user,appState,onLogout}){
   ];
   const extra={
     ambassador:[{id:'signups',label:'Sign-ups'}],
-    cc:[{id:'team',label:'Team'},{id:'teamreports',label:'📋 Reports'},{id:'signups',label:'Sign-ups'},{id:'rec',label:'Rec'}],
-    pm:[{id:'team',label:'CCs'},{id:'teamreports',label:'📋 Reports'},{id:'build',label:'Build'},{id:'rec',label:'Rec'}],
-    pfc:[{id:'confirm',label:'Confirm('+signups.filter(s=>s.pfcStatus==='Pending').length+')'},{id:'team',label:'PMs'},{id:'teamreports',label:'📋 Reports'},{id:'allsu',label:'All'},{id:'rec',label:'Rec'}],
+    cc:[{id:'team',label:'Team'},{id:'teamreports',label:'📋 Reports'},{id:'signups',label:'Sign-ups'},{id:'rec',label:'Rec'},{id:'hr',label:'HR'}],
+    pm:[{id:'team',label:'CCs'},{id:'teamreports',label:'📋 Reports'},{id:'build',label:'Build'},{id:'rec',label:'Rec'},{id:'hr',label:'HR'}],
+    pfc:[{id:'confirm',label:'Confirm('+signups.filter(s=>s.pfcStatus==='Pending').length+')'},{id:'team',label:'PMs'},{id:'teamreports',label:'📋 Reports'},{id:'allsu',label:'All'},{id:'rec',label:'Rec'},{id:'hr',label:'HR'}],
   };
   const tabs=[...base,...(extra[user.role]||[])];
 
@@ -3238,7 +3445,7 @@ function MemberDashboard({user,appState,onLogout}){
         <Tabs tabs={tabs} active={tab} onSelect={setTab}/>
       </div>
       <div style={{padding:'12px 12px 80px'}} className="fade-up">
-        {tab==='home'&&<HomeTab user={user} users={users} signups={signups} reports={reports} settings={settings}/>}
+        {tab==='home'&&<HomeTab user={user} users={users} signups={signups} reports={reports} settings={settings} broadcasts={broadcasts}/>}
         {tab==='link'&&<MyLinkTab user={user}/>}
         {tab==='meeting'&&<MeetingTab user={user}/>}
         {tab==='group'&&<GrpTab user={user} grp={grp} saveGrp={saveGrp} users={users}/>}
@@ -3251,7 +3458,8 @@ function MemberDashboard({user,appState,onLogout}){
         {tab==='team'&&<TeamTab user={user} users={users} signups={signups} reports={reports}/>}
         {tab==='rec'&&<RecTab user={user} users={users} saveUsers={saveUsers} pushNotif={pushNotif}/>}
         {tab==='build'&&<BuildTab users={users} saveUsers={saveUsers} pushNotif={pushNotif}/>}
-        {tab==='confirm'&&<ConfirmTab signups={signups} saveSignups={saveSignups} pushNotif={pushNotif}/>}
+        {tab==='confirm'&&<ConfirmTab signups={signups} saveSignups={saveSignups} pushNotif={pushNotif} users={users} user={user}/>}
+        {tab==='hr'&&<HRDashboard user={user} users={users} saveUsers={saveUsers} reports={reports} signups={signups} pushNotif={pushNotif}/>}
         {tab==='allsu'&&<AllSignupsTab signups={signups} saveSignups={saveSignups}/>}
       </div>
     </div>
@@ -3259,6 +3467,102 @@ function MemberDashboard({user,appState,onLogout}){
 }
 
 // ── FOUNDER LEADERBOARD ────────────────────────────────────────────────────
+// ── HR DASHBOARD ──────────────────────────────────────────────
+function HRDashboard({user,users,saveUsers,reports,signups,pushNotif}){
+  const isFounder=user.role==='founder';
+  // Show members this user oversees
+  const myTeam=isFounder
+    ?Object.values(users).filter(u=>u.id!=='FOUNDER')
+    :Object.values(users).filter(u=>u.ref===user.code);
+  const [search,setSearch]=useState('');
+  const [filter,setFilter]=useState('all');
+  const today=new Date().toISOString().split('T')[0];
+
+  const filtered=myTeam.filter(u=>{
+    const matchSearch=!search||u.name?.toLowerCase().includes(search.toLowerCase())||u.code?.toLowerCase().includes(search.toLowerCase());
+    const matchFilter=filter==='all'||(filter==='active'&&u.approved&&!u.resigned)||(filter==='pending'&&!u.approved)||(filter==='resigned'&&u.resigned);
+    return matchSearch&&matchFilter;
+  });
+
+  const getReportStatus=u=>{
+    const todayReport=reports.find(r=>r.userCode===u.code&&r.date===today&&r.type==='daily');
+    return todayReport?'submitted':'missed';
+  };
+
+  const totalEarnings=u=>{
+    const sups=signups.filter(s=>s.ref===u.code&&s.pfcStatus==='Confirmed').length;
+    const base=sups*(u.role==='ambassador'?500:u.role==='cc'?800:u.role==='pm'?1200:2500);
+    const deds=(u.deductions||[]).reduce((a,d)=>a+d.amount,0);
+    return Math.max(0,base-deds);
+  };
+
+  return(
+    <div>
+      <div style={{fontWeight:800,fontSize:16,color:'var(--blue)',marginBottom:12}}>👥 HR Dashboard</div>
+      <div style={{display:'flex',gap:8,marginBottom:12,flexWrap:'wrap'}}>
+        {['all','active','pending','resigned'].map(f=>(
+          <button key={f} onClick={()=>setFilter(f)} style={{padding:'5px 14px',borderRadius:20,border:'none',background:filter===f?'var(--blue)':'#f0f0f0',color:filter===f?'#fff':'var(--text)',fontWeight:700,fontSize:12,cursor:'pointer',textTransform:'capitalize'}}>
+            {f}
+          </button>
+        ))}
+      </div>
+      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name or code..." style={{width:'100%',padding:'10px 14px',borderRadius:10,border:'1.5px solid var(--border)',fontSize:13,marginBottom:12,boxSizing:'border-box'}}/>
+      <div style={{fontSize:12,color:'var(--muted)',marginBottom:8}}>{filtered.length} member{filtered.length!==1?'s':''} found</div>
+      {filtered.length===0&&<div style={{textAlign:'center',color:'var(--muted)',padding:40}}>No members found</div>}
+      {filtered.map(u=>{
+        const reportStatus=getReportStatus(u);
+        const earnings=totalEarnings(u);
+        const deds=(u.deductions||[]).reduce((a,d)=>a+d.amount,0);
+        return(
+          <div key={u.code} style={{background:'#fff',borderRadius:14,padding:14,marginBottom:10,boxShadow:'var(--shadow)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:6}}>
+              <div>
+                <div style={{fontWeight:800,fontSize:14,color:'var(--text)'}}>{u.name}</div>
+                <div style={{fontSize:12,color:'var(--muted)'}}>{ROLE_LABELS[u.role]} · {u.code}</div>
+                <div style={{fontSize:12,color:'var(--muted)'}}>{u.phone} · {u.state}</div>
+              </div>
+              <div style={{textAlign:'right'}}>
+                <div style={{fontSize:11,padding:'3px 8px',borderRadius:20,background:u.resigned?'#fce4ec':u.approved?'#e8f5e9':'#fff8e1',color:u.resigned?'#c62828':u.approved?'#1b5e20':'#e65100',fontWeight:700,display:'inline-block'}}>
+                  {u.resigned?'Resigned':u.approved?'Active':'Pending'}
+                </div>
+              </div>
+            </div>
+            <div style={{display:'flex',gap:8,flexWrap:'wrap',marginBottom:8}}>
+              <div style={{background:'#f5f5f5',borderRadius:8,padding:'4px 10px',fontSize:12}}>
+                Today: <b style={{color:reportStatus==='submitted'?'#1b5e20':'#c62828'}}>{reportStatus==='submitted'?'Reported':'Missed'}</b>
+              </div>
+              <div style={{background:'#f5f5f5',borderRadius:8,padding:'4px 10px',fontSize:12}}>
+                Earnings: <b style={{color:'var(--blue)'}}>{'₦'}{earnings.toLocaleString()}</b>
+              </div>
+              {deds>0&&<div style={{background:'#fce4ec',borderRadius:8,padding:'4px 10px',fontSize:12}}>
+                Fines: <b style={{color:'#c62828'}}>{'₦'}{deds.toLocaleString()}</b>
+              </div>}
+            </div>
+            {(u.deductions||[]).length>0&&(
+              <details style={{fontSize:12,color:'var(--muted)'}}>
+                <summary style={{cursor:'pointer',color:'#c62828',fontWeight:600}}>View {u.deductions.length} fine(s)</summary>
+                {u.deductions.map((d,i)=>(
+                  <div key={i} style={{padding:'3px 0',borderBottom:'1px solid #f5f5f5'}}>
+                    {d.date} — {d.reason} — {'₦'}{d.amount.toLocaleString()}
+                  </div>
+                ))}
+              </details>
+            )}
+            {isFounder&&!u.approved&&!u.resigned&&(
+              <Btn small onClick={async()=>{
+                const nu={...users,[u.code]:{...u,approved:true}};
+                await saveUsers(nu);
+                await pushNotif(u.code,'Your account has been approved! Welcome to RehoVTU.');
+              }}>Approve</Btn>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+
 function FounderLeaderboard({users,signups}){
   const{start}=getMonthRange();
   const ranked=Object.values(users).filter(u=>u.role==='ambassador'&&u.approved)
@@ -3295,6 +3599,7 @@ function FounderDashboard({user,appState,onLogout}){
 
   const tabs=[
     {id:'admin',label:'Admin'},
+    {id:'hr',label:'HR'},
     {id:'reports',label:'📋 Reports'},
     {id:'meeting',label:'📹 Meet'},
     {id:'group',label:'Group'},
@@ -3317,6 +3622,7 @@ function FounderDashboard({user,appState,onLogout}){
         {mainTab==='group'&&<GrpTab user={user} grp={grp} saveGrp={saveGrp} users={users}/>}
         {mainTab==='dm'&&<DMTab user={user} users={users} dms={dms} saveDms={saveDms}/>}
         {mainTab==='inbox'&&<InboxTab user={user} broadcasts={broadcasts} saveUsers={saveUsers} users={users}/>}
+        {mainTab==='hr'&&<HRDashboard user={user} users={users} saveUsers={saveUsers} reports={reports} signups={signups} pushNotif={pushNotif}/>}
         {mainTab==='leaderboard'&&<FounderLeaderboard users={users} signups={signups}/>}
         {mainTab==='account'&&<AccountTab user={user} users={users} saveUsers={saveUsers}/>}
       </div>
@@ -3365,19 +3671,23 @@ function useAppState(){
   useEffect(()=>{
     const ref=new URLSearchParams(window.location.search).get('ref');
     if(ref)sessionStorage.setItem('ref_code',ref);
-    const fallback=setTimeout(()=>{
+    // Hard fallback: if app never leaves loading after 6s, force it
+    const fallbackTimer=setTimeout(()=>{
       const rc=sessionStorage.getItem('ref_code');
       setScreen(rc?'team':'landing');
     },6000);
     setTimeout(async()=>{
       try{
-        const[u,s,st,b,d,g,r]=await Promise.all([DB.get('users'),DB.get('signups'),DB.get('settings'),DB.get('broadcasts'),DB.get('dms'),DB.get('grp'),DB.get('reports')]);
+        const timeout=new Promise(res=>setTimeout(res,5000)); // max 5s for all DB calls
+        const dbLoad=Promise.all([DB.get('users'),DB.get('signups'),DB.get('settings'),DB.get('broadcasts'),DB.get('dms'),DB.get('grp'),DB.get('reports')]);
+        const[u,s,st,b,d,g,r]=await Promise.race([dbLoad,timeout.then(()=>[null,null,null,null,null,null,null])]);
         const au=u||{};
         if(!au['FOUNDER'])au['FOUNDER']=FOUNDER_ACCT;
         setUsers(au);setSignups(s||[]);setSettings(st||DEFAULT_SETTINGS);
         setBroadcasts(b||[]);setDms(d||[]);setGrp(g||[]);setReports(r||[]);
-      }catch(e){console.warn('DB error',e);}
-      clearTimeout(fallback);
+      }catch(e){console.warn('DB load error',e);}
+      clearTimeout(fallbackTimer);
+      // Read ref from sessionStorage (reliable even if closure had issues)
       const rc=sessionStorage.getItem('ref_code');
       setScreen(rc?'team':'landing');
     },500);
@@ -3392,12 +3702,13 @@ function useAppState(){
   },[users]);
 
 
+  // ── AUTO-DEDUCTION: missed daily reports (runs after 22:00) ─
   useEffect(()=>{
     if(!Object.keys(users).length||!reports.length) return;
     const now=new Date();
     const todayStr=now.toISOString().split('T')[0];
-    if(now.getDay()===0) return;
-    if(now.getHours()<22) return;
+    if(now.getDay()===0) return; // skip Sunday
+    if(now.getHours()<22) return; // only after 22:00
     const dedKey='rv_ded_'+todayStr;
     if(localStorage.getItem(dedKey)) return;
     const members=Object.values(users).filter(u=>u.approved&&u.id!=='FOUNDER'&&!u.resigned&&u.role!=='founder');
@@ -3420,6 +3731,262 @@ function useAppState(){
 }
 
 // ── ROOT ───────────────────────────────────────────────────────────────────
+// ── HR STAFF DASHBOARD ─────────────────────────────────────────────────────
+function HRStaffDashboard({user,appState,onLogout}){
+  const{users,saveUsers,broadcasts,saveBroadcasts,grp,saveGrp,reports,dms,saveDms,pushNotif,settings}=appState;
+  const [tab,setTab]=useState('home');
+  const tabs=[
+    {id:'home',label:'Home'},
+    {id:'broadcast',label:'📢 Comms'},
+    {id:'meetings',label:'📅 Meetings'},
+    {id:'group',label:'💬 Group'},
+    {id:'reports',label:'📋 Reports'},
+  ];
+  const unread=(user.notifications||[]).filter(n=>!n.read).length;
+
+  return(
+    <div style={{minHeight:'100vh',background:'var(--bg)'}}>
+      <div style={{background:'var(--blue)',color:'#fff',padding:'14px 16px 10px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+        <div>
+          <div style={{fontWeight:900,fontSize:16}}>RehoVTU HR</div>
+          <div style={{fontSize:12,opacity:.8}}>{user.name}</div>
+        </div>
+        <div style={{display:'flex',gap:10,alignItems:'center'}}>
+          {unread>0&&<div style={{background:'#c62828',color:'#fff',borderRadius:20,padding:'2px 8px',fontSize:11,fontWeight:700}}>{unread}</div>}
+          <button onClick={onLogout} style={{background:'rgba(255,255,255,.15)',border:'none',color:'#fff',padding:'6px 12px',borderRadius:8,fontSize:12,cursor:'pointer'}}>Logout</button>
+        </div>
+      </div>
+
+      <div style={{display:'flex',overflowX:'auto',background:'#fff',borderBottom:'1px solid var(--border)',padding:'0 12px'}} className="hide-scroll">
+        {tabs.map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{padding:'12px 14px',border:'none',background:'none',fontWeight:tab===t.id?800:500,color:tab===t.id?'var(--blue)':'var(--muted)',borderBottom:tab===t.id?'2px solid var(--blue)':'2px solid transparent',cursor:'pointer',whiteSpace:'nowrap',fontSize:13}}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div style={{padding:'16px',maxWidth:600,margin:'0 auto'}}>
+        {tab==='home'&&<HRHomeTab user={user} users={users} reports={reports}/>}
+        {tab==='broadcast'&&<HRBroadcastTab user={user} users={users} broadcasts={broadcasts} saveBroadcasts={saveBroadcasts} pushNotif={pushNotif}/>}
+        {tab==='meetings'&&<MeetingTab user={user} users={users} saveUsers={saveUsers}/>}
+        {tab==='group'&&<HRGroupTab user={user} grp={grp} saveGrp={saveGrp} users={users}/>}
+        {tab==='reports'&&<HRReportsTab user={user} users={users} reports={reports}/>}
+      </div>
+    </div>
+  );
+}
+
+function HRHomeTab({user,users,reports}){
+  const today=new Date().toISOString().split('T')[0];
+  const allMembers=Object.values(users).filter(u=>u.approved&&u.role!=='founder'&&u.role!=='hr'&&!u.resigned);
+  const reportedToday=reports.filter(r=>r.date===today&&r.type==='daily');
+  const missedToday=allMembers.filter(u=>!reportedToday.find(r=>r.userCode===u.code));
+  const byRole=role=>allMembers.filter(u=>u.role===role).length;
+  return(
+    <div>
+      <div style={{fontWeight:800,fontSize:16,color:'var(--blue)',marginBottom:4}}>Good day, {user.name.split(' ')[0]} 👋</div>
+      <div style={{fontSize:13,color:'var(--muted)',marginBottom:16}}>HR Staff Dashboard</div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginBottom:16}}>
+        {[
+          ['👥','Total Members',allMembers.length,'var(--blue)'],
+          ['✅','Reported Today',reportedToday.length,'#1b5e20'],
+          ['⚠️','Missed Today',missedToday.length,'#c62828'],
+          ['📋','Reports This Week',reports.filter(r=>r.date>=new Date(Date.now()-6*864e5).toISOString().split("T")[0]).length,'var(--purple)'],
+        ].map(([icon,label,val,color])=>(
+          <div key={label} style={{background:'#fff',borderRadius:14,padding:14,boxShadow:'var(--shadow)',textAlign:'center'}}>
+            <div style={{fontSize:22}}>{icon}</div>
+            <div style={{fontSize:22,fontWeight:900,color}}>{val}</div>
+            <div style={{fontSize:11,color:'var(--muted)'}}>{label}</div>
+          </div>
+        ))}
+      </div>
+      <div style={{background:'#fff',borderRadius:14,padding:14,boxShadow:'var(--shadow)',marginBottom:12}}>
+        <div style={{fontWeight:700,fontSize:14,marginBottom:10}}>Team Breakdown</div>
+        {['pfc','pm','cc','ambassador'].map(r=>(
+          <div key={r} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #f5f5f5',fontSize:13}}>
+            <span>{ROLE_LABELS[r]}</span>
+            <span style={{fontWeight:700}}>{byRole(r)}</span>
+          </div>
+        ))}
+      </div>
+      {missedToday.length>0&&(
+        <div style={{background:'#fff3e0',borderRadius:14,padding:14,boxShadow:'var(--shadow)'}}>
+          <div style={{fontWeight:700,fontSize:14,color:'#e65100',marginBottom:8}}>⚠️ Missed Report Today</div>
+          {missedToday.slice(0,10).map(u=>(
+            <div key={u.code} style={{fontSize:13,padding:'4px 0',borderBottom:'1px solid #ffe0b2'}}>
+              {u.name} <span style={{color:'var(--muted)',fontSize:11}}>({ROLE_LABELS[u.role]})</span>
+            </div>
+          ))}
+          {missedToday.length>10&&<div style={{fontSize:12,color:'var(--muted)',marginTop:4}}>+{missedToday.length-10} more</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HRBroadcastTab({user,users,broadcasts,saveBroadcasts,pushNotif}){
+  const [title,setTitle]=useState('');
+  const [msg,setMsg]=useState('');
+  const [role,setRole]=useState('all');
+  const [urgent,setUrgent]=useState(false);
+  const [ok,setOk]=useState('');
+  const [err,setErr]=useState('');
+
+  const send=async()=>{
+    if(!title.trim()||!msg.trim()){setErr('Title and message are required');return;}
+    const bc={id:'bc_'+Date.now(),title:title.trim(),message:msg.trim(),role,urgent,sentBy:user.name,time:new Date().toISOString()};
+    await saveBroadcasts([...broadcasts,bc]);
+    const targets=Object.values(users).filter(u=>u.approved&&u.role!=='founder'&&u.role!=='hr'&&!u.resigned&&(role==='all'||u.role===role));
+    for(const t of targets){
+      await pushNotif(t.code,(urgent?'🚨 ':'📢 ')+title+': '+msg);
+    }
+    setTitle('');setMsg('');setUrgent(false);
+    setOk('Broadcast sent to '+targets.length+' member(s)!');
+    setTimeout(()=>setOk(''),4000);
+  };
+
+  return(
+    <div>
+      <div style={{fontWeight:800,fontSize:16,color:'var(--blue)',marginBottom:12}}>📢 Send Broadcast</div>
+      {err&&<Alrt type="error" msg={err} onClose={()=>setErr('')}/>}
+      {ok&&<Alrt type="success" msg={ok}/>}
+      <div style={{background:'#fff',borderRadius:14,padding:16,boxShadow:'var(--shadow)',marginBottom:16}}>
+        <Inp label="Title" value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Training Reminder"/>
+        <Sel label="Send to" value={role} onChange={e=>setRole(e.target.value)}
+          options={[{v:'all',l:'All Members'},{v:'pfc',l:'PFCs only'},{v:'pm',l:'PMs only'},{v:'cc',l:'CCs only'},{v:'ambassador',l:'Ambassadors only'}]}/>
+        <div style={{marginBottom:10}}>
+          <div style={{fontSize:12,fontWeight:600,color:'var(--text)',marginBottom:4}}>Message</div>
+          <textarea value={msg} onChange={e=>setMsg(e.target.value)} rows={4}
+            placeholder="Type your message here..."
+            style={{width:'100%',padding:'10px 12px',borderRadius:10,border:'1.5px solid var(--border)',fontSize:13,resize:'vertical',boxSizing:'border-box'}}/>
+        </div>
+        <label style={{display:'flex',alignItems:'center',gap:8,marginBottom:14,cursor:'pointer'}}>
+          <input type="checkbox" checked={urgent} onChange={e=>setUrgent(e.target.checked)} style={{width:16,height:16,accentColor:'#c62828'}}/>
+          <span style={{fontSize:13,color:'#c62828',fontWeight:700}}>Mark as Urgent</span>
+        </label>
+        <Btn full onClick={send}>Send Broadcast</Btn>
+      </div>
+      <div style={{fontWeight:700,fontSize:14,marginBottom:10}}>Recent Broadcasts</div>
+      {broadcasts.length===0&&<div style={{textAlign:'center',color:'var(--muted)',padding:20,fontSize:13}}>No broadcasts yet</div>}
+      {[...broadcasts].reverse().slice(0,10).map(b=>(
+        <div key={b.id} style={{background:'#fff',borderRadius:12,padding:12,marginBottom:8,boxShadow:'var(--shadow)',borderLeft:'3px solid '+(b.urgent?'#c62828':'var(--blue)')}}>
+          <div style={{fontWeight:700,fontSize:13}}>{b.urgent&&'🚨 '}{b.title||'Broadcast'}</div>
+          <div style={{fontSize:12,color:'var(--muted)',marginBottom:4}}>{b.role==='all'?'All Members':ROLE_LABELS[b.role]} · {b.sentBy||'Founder'}</div>
+          <div style={{fontSize:13,color:'var(--text)'}}>{b.message}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function HRGroupTab({user,grp,saveGrp,users}){
+  const [channel,setChannel]=useState('pfc');
+  const [msg,setMsg]=useState('');
+  const endRef=useRef();
+  const channels=['pfc','pm','cc','ambassador'];
+  const filtered=grp.filter(m=>m.channel===channel);
+  useEffect(()=>{endRef.current?.scrollIntoView({behavior:'smooth'});},[filtered,channel]);
+  const send=async()=>{
+    if(!msg.trim())return;
+    const m={id:'g_'+Date.now(),userCode:user.code,userName:user.name+'(HR)',userRole:'hr',channel,text:msg.trim(),time:new Date().toISOString()};
+    setMsg('');
+    await saveGrp([...grp,m]);
+  };
+  return(
+    <div>
+      <div style={{fontWeight:800,fontSize:16,color:'var(--blue)',marginBottom:10}}>💬 Group Chats</div>
+      <div style={{display:'flex',gap:6,marginBottom:12,overflowX:'auto'}} className="hide-scroll">
+        {channels.map(c=>(
+          <button key={c} onClick={()=>setChannel(c)} style={{padding:'5px 14px',borderRadius:20,border:'none',background:channel===c?'var(--blue)':'#f0f0f0',color:channel===c?'#fff':'var(--text)',fontWeight:700,fontSize:12,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>
+            {ROLE_LABELS[c]}
+          </button>
+        ))}
+      </div>
+      <div style={{background:'#fff',borderRadius:14,boxShadow:'var(--shadow)',display:'flex',flexDirection:'column',height:'55vh'}}>
+        <div style={{flex:1,overflowY:'auto',padding:12,display:'flex',flexDirection:'column',gap:8}} className="hide-scroll">
+          {filtered.length===0&&<div style={{textAlign:'center',color:'var(--muted)',marginTop:30,fontSize:13}}>No messages in {ROLE_LABELS[channel]} chat yet</div>}
+          {filtered.map(m=>{
+            const isMe=m.userCode===user.code;
+            return(
+              <div key={m.id} style={{display:'flex',flexDirection:isMe?'row-reverse':'row',gap:8,alignItems:'flex-end'}}>
+                <div style={{background:isMe?'var(--blue)':'#f0f0f0',color:isMe?'#fff':'var(--text)',borderRadius:12,padding:'8px 12px',maxWidth:'75%',fontSize:13}}>
+                  {!isMe&&<div style={{fontSize:10,fontWeight:700,color:'var(--muted)',marginBottom:2}}>{m.userName}</div>}
+                  {m.text}
+                  <div style={{fontSize:10,opacity:.6,marginTop:2,textAlign:'right'}}>{new Date(m.time).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}</div>
+                </div>
+              </div>
+            );
+          })}
+          <div ref={endRef}/>
+        </div>
+        <div style={{padding:'10px 12px',borderTop:'1px solid var(--border)',display:'flex',gap:8}}>
+          <input value={msg} onChange={e=>setMsg(e.target.value)} onKeyDown={e=>e.key==='Enter'&&!e.shiftKey&&send()}
+            placeholder={'Message '+ROLE_LABELS[channel]+'...'}
+            style={{flex:1,padding:'9px 12px',borderRadius:10,border:'1.5px solid var(--border)',fontSize:13}}/>
+          <Btn onClick={send} small>Send</Btn>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HRReportsTab({user,users,reports}){
+  const [roleFilter,setRoleFilter]=useState('all');
+  const [typeFilter,setTypeFilter]=useState('all');
+  const [search,setSearch]=useState('');
+  const today=new Date().toISOString().split('T')[0];
+  const weekAgo=new Date(Date.now()-6*864e5).toISOString().split('T')[0];
+
+  const filtered=reports.filter(r=>{
+    const member=users[r.userCode];
+    if(!member)return false;
+    if(roleFilter!=='all'&&member.role!==roleFilter)return false;
+    if(typeFilter!=='all'&&r.type!==typeFilter)return false;
+    if(search&&!member.name?.toLowerCase().includes(search.toLowerCase())&&!r.userCode?.toLowerCase().includes(search.toLowerCase()))return false;
+    return true;
+  });
+
+  const sorted=[...filtered].sort((a,b)=>new Date(b.date)-new Date(a.date));
+
+  return(
+    <div>
+      <div style={{fontWeight:800,fontSize:16,color:'var(--blue)',marginBottom:12}}>📋 Activity Reports</div>
+      <div style={{display:'flex',gap:6,marginBottom:8,overflowX:'auto'}} className="hide-scroll">
+        {['all','pfc','pm','cc','ambassador'].map(r=>(
+          <button key={r} onClick={()=>setRoleFilter(r)} style={{padding:'4px 12px',borderRadius:20,border:'none',background:roleFilter===r?'var(--blue)':'#f0f0f0',color:roleFilter===r?'#fff':'var(--text)',fontWeight:700,fontSize:12,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0}}>
+            {r==='all'?'All':ROLE_LABELS[r]}
+          </button>
+        ))}
+      </div>
+      <div style={{display:'flex',gap:6,marginBottom:10,overflowX:'auto'}} className="hide-scroll">
+        {['all','daily','weekly','monthly'].map(t=>(
+          <button key={t} onClick={()=>setTypeFilter(t)} style={{padding:'4px 12px',borderRadius:20,border:'none',background:typeFilter===t?'var(--purple)':'#f0f0f0',color:typeFilter===t?'#fff':'var(--text)',fontWeight:700,fontSize:12,cursor:'pointer',whiteSpace:'nowrap',flexShrink:0,textTransform:'capitalize'}}>
+            {t}
+          </button>
+        ))}
+      </div>
+      <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search by name or code..."
+        style={{width:'100%',padding:'9px 12px',borderRadius:10,border:'1.5px solid var(--border)',fontSize:13,marginBottom:10,boxSizing:'border-box'}}/>
+      <div style={{fontSize:12,color:'var(--muted)',marginBottom:8}}>{sorted.length} report(s)</div>
+      {sorted.length===0&&<div style={{textAlign:'center',color:'var(--muted)',padding:30,fontSize:13}}>No reports found</div>}
+      {sorted.slice(0,30).map(r=>{
+        const member=users[r.userCode];
+        return(
+          <div key={r.id} style={{background:'#fff',borderRadius:12,padding:12,marginBottom:8,boxShadow:'var(--shadow)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',marginBottom:4}}>
+              <div style={{fontWeight:700,fontSize:13}}>{member?.name||r.userCode}</div>
+              <div style={{fontSize:11,padding:'2px 8px',borderRadius:10,background:r.type==='daily'?'#dbeafe':r.type==='weekly'?'#f3e5f5':'#e8f5e9',fontWeight:700,textTransform:'capitalize'}}>{r.type}</div>
+            </div>
+            <div style={{fontSize:11,color:'var(--muted)',marginBottom:6}}>{ROLE_LABELS[member?.role]} · {r.date}</div>
+            <div style={{fontSize:13,color:'var(--text)',lineHeight:1.5}}>{r.text}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+
 function App(){
   const appState=useAppState();
   const{screen,setScreen,user,setUser,users,saveUsers}=appState;
@@ -3435,6 +4002,7 @@ function App(){
   if(screen==='team')return <TeamReg users={users} saveUsers={saveUsers} onNavigate={nav}/>;
   if(screen==='dashboard'&&user){
     if(user.role==='founder')return <FounderDashboard user={user} appState={appState} onLogout={logout}/>;
+    if(user.role==='hr')return <HRStaffDashboard user={user} appState={appState} onLogout={logout}/>;
     return <MemberDashboard user={user} appState={appState} onLogout={logout}/>;
   }
   return <Landing onNavigate={nav}/>;
