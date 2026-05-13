@@ -596,6 +596,13 @@ function LoginScreen({users,onLogin,onNavigate}){
       return;
     }
     if(u.resigned){setErr('This account has been deactivated. Contact the founder.');return;}
+    if(!u.approved){
+      const uplineCode=u.ref||'';
+      const uplineUser=uplineCode?Object.values(users).find(m=>m.code===uplineCode):null;
+      const uplineName=uplineUser?uplineUser.name:'your upline leader';
+      setErr('Your account is pending approval by '+uplineName+'. Please ask them to log in and approve you from their Pending tab.');
+      return;
+    }
     onLogin(u);
   };
   return(
@@ -734,8 +741,8 @@ function TeamReg({users,saveUsers,onNavigate}){
       ref:sessionStorage.getItem('ref_code')||form.ref||'',
       email:emailLower,
       joined:TODAY,
-      approved:true,      // auto-approved — can login immediately
-      verified:false,     // unverified badge until founder certifies
+      approved:false,     // must be approved by upline before login
+      verified:false,
       avatar:'',
       notifications:[{
         msg:`🎉 Welcome to RehoVTU! Your member code is ${nc}. You can now log in with your email and password.`,
@@ -1543,6 +1550,53 @@ function MeetingTab({user,users,saveUsers}){
 }
 
 // ── GROUP CHAT TAB ─────────────────────────────────────────────────────────
+function PendingApprovalsTab({user,users,saveUsers,pushNotif}){
+  const pending=Object.values(users).filter(u=>u.ref===user.code&&!u.approved&&!u.resigned);
+  const downRole={cc:'Ambassador',pm:'Campus Coordinator',pfc:'Project Manager'}[user.role]||'Member';
+  return(
+    <div>
+      <div style={{fontWeight:800,fontSize:16,color:'var(--blue)',marginBottom:4}}>
+        Pending Approvals
+      </div>
+      <div style={{fontSize:13,color:'var(--muted)',marginBottom:14}}>
+        These {downRole}s registered via your link and are waiting for your approval.
+      </div>
+      {pending.length===0&&(
+        <div style={{textAlign:'center',padding:40,color:'var(--muted)',fontSize:14}}>
+          No pending approvals 🎉
+        </div>
+      )}
+      {pending.map(u=>(
+        <div key={u.code} style={{background:'#fff',borderRadius:14,padding:14,marginBottom:10,boxShadow:'var(--shadow)',border:'1.5px solid #fde68a'}}>
+          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
+            <Ava user={u} size={36}/>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontWeight:700,fontSize:14}}>{u.name}</div>
+              <div style={{fontSize:12,color:'var(--muted)'}}>{ROLE_LABELS[u.role]} · {u.code}</div>
+              <div style={{fontSize:12,color:'var(--muted)'}}>{u.phone} · {u.state}</div>
+              <div style={{fontSize:12,color:'var(--muted)'}}>{u.email}</div>
+            </div>
+          </div>
+          <div style={{display:'flex',gap:8}}>
+            <Btn small variant="green" onClick={async()=>{
+              const nu={...users,[u.code]:{...u,approved:true,verified:true,
+                notifications:[{msg:'✅ Your account has been approved by '+user.name+'! You can now log in.',time:new Date().toISOString(),read:false},...(u.notifications||[])]}};
+              await saveUsers(nu);
+              await pushNotif(u.code,'✅ Your account has been approved by '+user.name+'! Welcome to the team.');
+            }}>✓ Approve</Btn>
+            <Btn small variant="danger" onClick={async()=>{
+              if(!window.confirm('Reject '+u.name+'? They will be deleted.'))return;
+              const nu={...users};delete nu[u.code];
+              await saveUsers(nu);
+            }}>✕ Reject</Btn>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
 function GrpTab({user,grp,saveGrp,users}){
   const [msg,setMsg]=useState('');
   const endRef=useRef();
@@ -2518,7 +2572,7 @@ function FounderPanel({appState}){
   const confirmed=signups.filter(s=>s.pfcStatus==='Confirmed');
   const built=signups.filter(s=>s.siteBuilt);
   const noRef=signups.filter(s=>!s.ref||s.ref.trim()==='');
-  const pendingMembers=Object.values(users).filter(u=>u.approved&&!u.verified&&u.id!=='FOUNDER'&&!u.resigned);
+  const pendingMembers=Object.values(users).filter(u=>!u.approved&&u.role==='pfc'&&u.id!=='FOUNDER'&&!u.resigned);
   const pendingSignups=signups.filter(s=>s.founderApproved===false||s.founderApproved===undefined);
   const revenue=thisMonthSu.length*950;
 
@@ -3007,7 +3061,7 @@ function FounderPanel({appState}){
             </div>
           </div>
           <div style={{display:'flex',gap:8}}>
-            <Btn small onClick={async()=>{const k=u.code||u.id;await saveUsers({...users,[k]:{...u,verified:true}});}} variant="green">✓ Verify</Btn>
+            <Btn small onClick={async()=>{const k=u.code||u.id;await saveUsers({...users,[k]:{...u,approved:true,verified:true,notifications:[{msg:'✅ Your account has been approved by the Founder! Welcome to RehoVTU.',time:new Date().toISOString(),read:false},...(u.notifications||[])]}});await pushNotif(k,'✅ Your PFC account has been approved by the Founder!');}} variant="green">✓ Approve</Btn>
             <Btn small onClick={async()=>{if(window.confirm(`Delete ${u.name}?`)){const nu={...users};delete nu[u.code||u.id];await saveUsers(nu);}}} variant="danger">✕ Delete</Btn>
           </div>
         </div>
@@ -3271,11 +3325,13 @@ function MemberDashboard({user,appState,onLogout}){
     {id:'reports',label:'Reports'},
     {id:'account',label:'Account'},
   ];
+  const myPending=Object.values(users).filter(u=>u.ref===user.code&&!u.approved&&!u.resigned);
+  const pendingBadge=myPending.length>0?'('+myPending.length+')':'';
   const extra={
     ambassador:[{id:'signups',label:'Sign-ups'}],
-    cc:[{id:'team',label:'Team'},{id:'teamreports',label:'📋 Reports'},{id:'signups',label:'Sign-ups'},{id:'rec',label:'Rec'}],
-    pm:[{id:'team',label:'CCs'},{id:'teamreports',label:'📋 Reports'},{id:'build',label:'Build'},{id:'rec',label:'Rec'}],
-    pfc:[{id:'confirm',label:'Confirm('+signups.filter(s=>s.pfcStatus==='Pending').length+')'},{id:'team',label:'PMs'},{id:'teamreports',label:'📋 Reports'},{id:'allsu',label:'All'},{id:'rec',label:'Rec'}],
+    cc:[{id:'pending',label:'Pending'+pendingBadge},{id:'team',label:'Team'},{id:'teamreports',label:'📋 Reports'},{id:'signups',label:'Sign-ups'},{id:'rec',label:'Rec'}],
+    pm:[{id:'pending',label:'Pending'+pendingBadge},{id:'team',label:'CCs'},{id:'teamreports',label:'📋 Reports'},{id:'build',label:'Build'},{id:'rec',label:'Rec'}],
+    pfc:[{id:'pending',label:'Pending'+pendingBadge},{id:'confirm',label:'Confirm('+signups.filter(s=>s.pfcStatus==='Pending').length+')'},{id:'team',label:'PMs'},{id:'teamreports',label:'📋 Reports'},{id:'allsu',label:'All'},{id:'rec',label:'Rec'}],
   };
   const tabs=[...base,...(extra[user.role]||[])];
 
@@ -3299,6 +3355,7 @@ function MemberDashboard({user,appState,onLogout}){
         {tab==='team'&&<TeamTab user={user} users={users} signups={signups} reports={reports}/>}
         {tab==='rec'&&<RecTab user={user} users={users} saveUsers={saveUsers} pushNotif={pushNotif}/>}
         {tab==='build'&&<BuildTab users={users} saveUsers={saveUsers} pushNotif={pushNotif}/>}
+        {tab==='pending'&&<PendingApprovalsTab user={user} users={users} saveUsers={saveUsers} pushNotif={pushNotif}/>}
         {tab==='confirm'&&<ConfirmTab signups={signups} saveSignups={saveSignups} pushNotif={pushNotif}/>}
         {tab==='allsu'&&<AllSignupsTab signups={signups} saveSignups={saveSignups}/>}
       </div>
