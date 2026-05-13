@@ -2977,6 +2977,7 @@ function FounderPanel({appState}){
                   {u.verified?'⏳ Unverify':'✓ Verify'}
                 </Btn>
                 <Btn small onClick={()=>setPromoteTarget(u)} variant="ghost">⬆⬇ Role</Btn>
+                <Btn small onClick={()=>setTransferTarget(u)} variant="ghost">🔀 Transfer</Btn>
                 <Btn small onClick={()=>setResignTarget(u)} variant="outline">🚪 Resign</Btn>
                 <Btn small variant="danger" onClick={async()=>{if(window.confirm(`Delete ${u.name} permanently?`)){const nu={...users};delete nu[u.code||u.id];await saveUsers(nu);}}}>✕</Btn>
               </div>
