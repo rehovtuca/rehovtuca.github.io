@@ -596,13 +596,6 @@ function LoginScreen({users,onLogin,onNavigate}){
       return;
     }
     if(u.resigned){setErr('This account has been deactivated. Contact the founder.');return;}
-    if(!u.approved){
-      const uplineCode=u.ref||'';
-      const uplineUser=uplineCode?Object.values(users).find(m=>m.code===uplineCode):null;
-      const uplineName=uplineUser?uplineUser.name:'your upline leader';
-      setErr('Your account is pending approval by '+uplineName+'. Please ask them to log in and approve you from their Pending tab.');
-      return;
-    }
     onLogin(u);
   };
   return(
@@ -741,7 +734,7 @@ function TeamReg({users,saveUsers,onNavigate}){
       ref:sessionStorage.getItem('ref_code')||form.ref||'',
       email:emailLower,
       joined:TODAY,
-      approved:false,     // must be approved by upline before login
+      approved:true,
       verified:false,
       avatar:'',
       notifications:[{
@@ -2572,7 +2565,7 @@ function FounderPanel({appState}){
   const confirmed=signups.filter(s=>s.pfcStatus==='Confirmed');
   const built=signups.filter(s=>s.siteBuilt);
   const noRef=signups.filter(s=>!s.ref||s.ref.trim()==='');
-  const pendingMembers=Object.values(users).filter(u=>!u.approved&&u.role==='pfc'&&u.id!=='FOUNDER'&&!u.resigned);
+  const pendingMembers=Object.values(users).filter(u=>u.approved&&!u.verified&&u.id!=='FOUNDER'&&!u.resigned);
   const pendingSignups=signups.filter(s=>s.founderApproved===false||s.founderApproved===undefined);
   const revenue=thisMonthSu.length*950;
 
@@ -3325,13 +3318,11 @@ function MemberDashboard({user,appState,onLogout}){
     {id:'reports',label:'Reports'},
     {id:'account',label:'Account'},
   ];
-  const myPending=Object.values(users).filter(u=>u.ref===user.code&&!u.approved&&!u.resigned);
-  const pendingBadge=myPending.length>0?'('+myPending.length+')':'';
   const extra={
     ambassador:[{id:'signups',label:'Sign-ups'}],
-    cc:[{id:'pending',label:'Pending'+pendingBadge},{id:'team',label:'Team'},{id:'teamreports',label:'📋 Reports'},{id:'signups',label:'Sign-ups'},{id:'rec',label:'Rec'}],
-    pm:[{id:'pending',label:'Pending'+pendingBadge},{id:'team',label:'CCs'},{id:'teamreports',label:'📋 Reports'},{id:'build',label:'Build'},{id:'rec',label:'Rec'}],
-    pfc:[{id:'pending',label:'Pending'+pendingBadge},{id:'confirm',label:'Confirm('+signups.filter(s=>s.pfcStatus==='Pending').length+')'},{id:'team',label:'PMs'},{id:'teamreports',label:'📋 Reports'},{id:'allsu',label:'All'},{id:'rec',label:'Rec'}],
+    cc:[{id:'team',label:'Team'},{id:'teamreports',label:'📋 Reports'},{id:'signups',label:'Sign-ups'},{id:'rec',label:'Rec'}],
+    pm:[{id:'team',label:'CCs'},{id:'teamreports',label:'📋 Reports'},{id:'build',label:'Build'},{id:'rec',label:'Rec'}],
+    pfc:[{id:'confirm',label:'Confirm('+signups.filter(s=>s.pfcStatus==='Pending').length+')'},{id:'team',label:'PMs'},{id:'teamreports',label:'📋 Reports'},{id:'allsu',label:'All'},{id:'rec',label:'Rec'}],
   };
   const tabs=[...base,...(extra[user.role]||[])];
 
