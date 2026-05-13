@@ -713,21 +713,17 @@ function TeamReg({users,saveUsers,onNavigate}){
     secQ:"What is your mother's maiden name?",secA:'',
     role:'ambassador',ref:refCode
   });
-  // Re-run when users loads from Firebase — sets correct role from ref
   useEffect(()=>{
     if(!refCode||!Object.keys(users).length)return;
     const ru=Object.values(users).find(u=>u.code===refCode);
-    if(ru){
-      const ar=DOWNLINE[ru.role]||'ambassador';
-      setForm(f=>({...f,role:ar,ref:refCode}));
-    }
+    if(ru){setForm(f=>({...f,role:DOWNLINE[ru.role]||'ambassador',ref:refCode}));}
   },[users,refCode]);
   const [err,setErr]=useState('');const [done,setDone]=useState(false);
   const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
   const submit=async()=>{
     if(!form.name||!form.phone||!form.email||!form.password){setErr('Name, phone, email and password are required');return;}
     const emailLower=form.email.trim().toLowerCase();
-    if(Object.values(users).find(u=>(u.email||'').toLowerCase()===emailLower)){
+    if(Object.values(users).find(u=>(u.email||'').toLowerCase()===emailLower&&!u.resigned)){
       setErr('Email already registered. Please login instead.');return;
     }
     // Auto-generate code immediately — no waiting for approval
@@ -869,7 +865,7 @@ function DashHeader({user,onLogout,unreadNotif}){
 // ── REFERRAL LINK INLINE (used on Home tab) ────────────────────────────────
 function RefLinkInline({user}){
   const [copied,setCopied]=useState(false);
-  const BASE='https://rehovtucap.github.io';
+  const BASE='https://rehovtuca.github.io';
   const link=`${BASE}/?ref=${user?.code}`;
   const copy=()=>{
     navigator.clipboard?.writeText(link).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);});
@@ -2513,6 +2509,7 @@ function FounderPanel({appState}){
   const [fineTarget,setFineTarget]=useState(null);
   const [resignTarget,setResignTarget]=useState(null);  // user being resigned
   const [promoteTarget,setPromoteTarget]=useState(null); // {user, direction:'up'|'down'}
+  const [transferTarget,setTransferTarget]=useState(null);
   const [moveTarget,setMoveTarget]=useState(null);       // after resign: {user, replacementCode}
   const {start}=getMonthRange();
 
@@ -2593,6 +2590,46 @@ function FounderPanel({appState}){
     await pushNotif(replacementCode,`You have inherited the downline of ${resigned.name} (${resignedCode}).`);
     setResignTarget(null);setMoveTarget(null);
     alert(`Done. ${resigned.name} has been resigned.\nTheir direct team has been moved to ${nu[replacementCode]?.name}.`);
+  };
+
+  // ── TRANSFER TREE ──
+  const uplineRoleOf={ambassador:'cc',cc:'pm',pm:'pfc',pfc:'founder'};
+  const TransferModal=({u})=>{
+    const [pick,setPick]=useState('');
+    const [err,setErr]=useState('');
+    const ulRole=uplineRoleOf[u.role];
+    const targets=Object.values(users).filter(m=>
+      m.approved&&!m.resigned&&m.code!==u.code&&
+      (ulRole==='founder'?m.role==='founder':m.role===ulRole)
+    );
+    const doTransfer=async()=>{
+      if(!pick){setErr('Select a new upline first');return;}
+      const t=users[pick];
+      if(!t)return;
+      const nu={...users,[u.code]:{...users[u.code],ref:pick,referredBy:pick}};
+      await saveUsers(nu);
+      await pushNotif(pick,u.name+' and their team have been transferred to you.');
+      await pushNotif(u.code,'Your upline has been changed to '+t.name+'.');
+      setTransferTarget(null);
+      alert(u.name+' is now under '+t.name+'.');
+    };
+    return(
+      <Modal title={'Transfer Tree: '+u.name} onClose={()=>setTransferTarget(null)}>
+        <div style={{background:'#fff8f0',border:'1.5px solid var(--orange)',borderRadius:10,padding:'10px 14px',marginBottom:12,fontSize:13,color:'#92400e'}}>
+          Moving <b>{u.name}</b> ({ROLE_LABELS[u.role]}) to a new {ROLE_LABELS[ulRole]||'upline'}. Their full downline moves with them.
+        </div>
+        <div style={{fontSize:13,color:'var(--muted)',marginBottom:10}}>Current upline: <b>{u.ref?users[u.ref]?.name||u.ref:'None'}</b></div>
+        {targets.length===0&&<div style={{color:'var(--muted)',fontSize:13,padding:12}}>No valid upline members available.</div>}
+        {targets.map(m=>(
+          <label key={m.code} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:10,marginBottom:6,cursor:'pointer',background:pick===m.code?'#e8f0fe':'#f5f5f5',border:pick===m.code?'1.5px solid var(--blue)':'1.5px solid transparent'}}>
+            <input type="radio" name="tr" checked={pick===m.code} onChange={()=>setPick(m.code)} style={{accentColor:'var(--blue)'}}/>
+            <div><div style={{fontWeight:700,fontSize:13}}>{m.name}</div><div style={{fontSize:11,color:'var(--muted)'}}>{m.code} · {m.state}</div></div>
+          </label>
+        ))}
+        {err&&<div style={{color:'#c62828',fontSize:13,marginTop:4}}>{err}</div>}
+        <Btn full onClick={doTransfer} style={{marginTop:12}}>Confirm Transfer</Btn>
+      </Modal>
+    );
   };
 
   // ── PROMOTE / DEMOTE ──
@@ -3109,7 +3146,8 @@ function FounderPanel({appState}){
       const newMember={
         id:nc,code:nc,name:form.name,phone:form.phone,email:form.email,
         password:form.password,state:form.state,role:form.role,
-        referredBy:form.ref||'',accName:form.accName,accNum:form.accNum,bank:form.bank,
+        ref:form.ref||'FOUNDER',
+        referredBy:form.ref||'FOUNDER',accName:form.accName,accNum:form.accNum,bank:form.bank,
         joined:TODAY,approved:true,avatar:'',notifications:[
           {msg:`Welcome to RehoVTU! Your code is ${nc}. Login with your email and password.`,time:new Date().toISOString(),read:false}
         ],deductions:[],bonuses:[]
@@ -3185,6 +3223,7 @@ function FounderPanel({appState}){
       </Modal>}
       {resignTarget&&<ResignModal u={resignTarget}/>}
       {promoteTarget&&<PromoteModal u={promoteTarget}/>}
+      {transferTarget&&<TransferModal u={transferTarget}/>}
       {showManualAdd&&<ManualAddModal/>}
 
       {/* Quick action row */}
