@@ -787,8 +787,6 @@ function TeamReg({users,saveUsers,onNavigate}){
     }
   },[users,refCode]);
   const [err,setErr]=useState('');const [done,setDone]=useState(false);
-  const [consented,setConsented]=useState(false);
-  const [showConsent,setShowConsent]=useState(true);
   const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
   const submit=async()=>{
     if(!form.name||!form.phone||!form.email||!form.password){setErr('Name, phone, email and password are required');return;}
@@ -885,77 +883,6 @@ function TeamReg({users,saveUsers,onNavigate}){
         <Btn full onClick={()=>setStep('form')}>I Understand — Continue →</Btn>
         <div style={{textAlign:'center',marginTop:10}}>
           <button onClick={()=>onNavigate('landing')} style={{background:'none',border:'none',color:'var(--muted)',fontSize:13,cursor:'pointer'}}>← Back</button>
-        </div>
-      </div>
-    </div>
-  );
-  const roleEarn={ambassador:'500 per student signup, 700 above 50 signups',cc:'800 per Ambassador activated + override earnings',pm:'1,200 per CC activated + override earnings',pfc:'2,500 per PM activated + override earnings'};
-  const roleTeam={ambassador:'No minimum team size',cc:'Minimum 5 Ambassadors',pm:'Minimum 5 Campus Coordinators',pfc:'Minimum 5 Project Managers'};
-  const roleQuota={ambassador:'100 student signups per quarter',cc:'2,000 student signups per quarter',pm:'10,000 student signups per quarter',pfc:'50,000 student signups per quarter'};
-  const roleDeadline={ambassador:'7:00 PM daily',cc:'7:30 PM daily',pm:'8:00 PM daily',pfc:'9:00 PM daily'};
-  const roleFine={ambassador:'500',cc:'1,000',pm:'2,000',pfc:'3,000'};
-  const r=form.role||'ambassador';
-  if(showConsent)return(
-    <div style={{minHeight:'100vh',background:'var(--bg)',padding:'16px',overflowY:'auto'}}>
-      <div style={{maxWidth:480,margin:'0 auto'}}>
-
-        <div style={{background:'var(--blue)',borderRadius:18,padding:'18px 18px 14px',marginBottom:12,color:'#fff'}}>
-          <div style={{fontWeight:900,fontSize:17,marginBottom:2}}>📋 Member Agreement</div>
-          <div style={{fontSize:12,opacity:.8}}>Read before registering as {ROLE_LABELS[r]}</div>
-        </div>
-
-        <div style={{background:'#fff',borderRadius:16,padding:16,marginBottom:10,boxShadow:'var(--shadow)'}}>
-          <div style={{fontWeight:800,fontSize:14,color:'var(--blue)',marginBottom:8}}>📘 Your Role — {ROLE_LABELS[r]}</div>
-          <div style={{fontSize:13,color:'var(--text)',lineHeight:1.8}}>
-            <b>Earnings:</b> {'₦'}{roleEarn[r]}<br/>
-            <b>Team Requirement:</b> {roleTeam[r]}<br/>
-            <b>Sales Quota:</b> {roleQuota[r]}<br/>
-            <b>Report Deadline:</b> {roleDeadline[r]}<br/>
-            <b>Missed Report Fine:</b> {'₦'}{roleFine[r]} per day
-          </div>
-        </div>
-
-        <div style={{background:'#fff',borderRadius:16,padding:16,marginBottom:10,boxShadow:'var(--shadow)'}}>
-          <div style={{fontWeight:800,fontSize:14,color:'#E65100',marginBottom:8}}>📜 Rules and Regulations</div>
-          <div style={{fontSize:13,color:'var(--text)',lineHeight:1.8}}>
-            1. Submit daily reports before your role deadline every weekday.<br/>
-            2. Missing a report incurs an automatic fine deducted from earnings.<br/>
-            3. You are responsible for all members you recruit.<br/>
-            4. Fake signups lead to immediate termination without payout.<br/>
-            5. Payment disputes must be raised within 7 days of payout date.<br/>
-            6. Earnings are paid monthly after Founder verification.
-          </div>
-        </div>
-
-        <div style={{background:'#fff',borderRadius:16,padding:16,marginBottom:10,boxShadow:'var(--shadow)'}}>
-          <div style={{fontWeight:800,fontSize:14,color:'#c62828',marginBottom:8}}>{'💸'} Fine Schedule</div>
-          <div style={{fontSize:13,color:'var(--text)',lineHeight:1.8}}>
-            <b>Ambassador:</b> {'₦'}500 / day missed<br/>
-            <b>Campus Coordinator:</b> {'₦'}1,000 / day missed<br/>
-            <b>Project Manager:</b> {'₦'}2,000 / day missed<br/>
-            <b>PFC:</b> {'₦'}3,000 / day missed
-          </div>
-        </div>
-
-        <div style={{background:'#fff',borderRadius:16,padding:16,marginBottom:10,boxShadow:'var(--shadow)'}}>
-          <div style={{fontWeight:800,fontSize:14,color:'#4A148C',marginBottom:8}}>🔒 Non-Disclosure Agreement</div>
-          <div style={{fontSize:13,color:'var(--text)',lineHeight:1.8}}>
-            By joining RehoVTU you agree to keep all internal commission structures, member data, referral networks, business strategies and Founder contact information strictly confidential. You may not share or disclose any proprietary information to any third party during or after your membership. Breach of this NDA may result in legal action and forfeiture of all earnings.
-          </div>
-        </div>
-
-        <div style={{background:'#fff',borderRadius:16,padding:16,marginBottom:14,boxShadow:'var(--shadow)'}}>
-          <label style={{display:'flex',gap:10,alignItems:'flex-start',cursor:'pointer'}}>
-            <input type="checkbox" checked={consented} onChange={e=>setConsented(e.target.checked)} style={{marginTop:3,width:18,height:18,accentColor:'var(--blue)',cursor:'pointer',flexShrink:0}}/>
-            <span style={{fontSize:13,color:'var(--text)',lineHeight:1.6}}>I have read and understood the Role Workbook, Rules and Regulations, Fine Schedule and Non-Disclosure Agreement. I agree to all RehoVTU policies.</span>
-          </label>
-        </div>
-
-        <Btn full onClick={()=>{if(!consented){alert('Please read and tick the agreement to continue.');return;}setShowConsent(false);}} style={{marginBottom:10}}>
-          I Agree — Proceed to Register
-        </Btn>
-        <div style={{textAlign:'center'}}>
-          <button onClick={()=>onNavigate('landing')} style={{background:'none',border:'none',color:'var(--muted)',fontSize:13,cursor:'pointer'}}>Back</button>
         </div>
       </div>
     </div>
@@ -3492,6 +3419,15 @@ function FounderPanel({appState}){
 function MemberDashboard({user,appState,onLogout}){
   const{users,saveUsers,signups,saveSignups,dms,saveDms,grp,saveGrp,reports,saveReports,broadcasts,settings,pushNotif}=appState;
   const [tab,setTab]=useState('home');
+  // One-time consent modal on first login
+  const consentKey='rv_consent_'+user.code;
+  const [showConsent,setShowConsent]=useState(()=>!localStorage.getItem(consentKey));
+  const [consented,setConsented]=useState(false);
+  const acceptConsent=()=>{
+    if(!consented){alert('Please tick the checkbox to confirm you have read and agreed.');return;}
+    localStorage.setItem(consentKey,'1');
+    setShowConsent(false);
+  };
   const unreadDM=dms.filter(m=>m.to===user.code&&!m.read).length;
   const unreadIn=(user.notifications||[]).filter(n=>!n.read).length;
 
@@ -3513,8 +3449,46 @@ function MemberDashboard({user,appState,onLogout}){
   };
   const tabs=[...base,...(extra[user.role]||[])];
 
+  const roleEarn={ambassador:'₦500 per student signup (₦700 above 50)',cc:'₦800 per Ambassador activated + overrides',pm:'₦1,200 per CC activated + overrides',pfc:'₦2,500 per PM activated + overrides'};
+  const roleTeam={ambassador:'No minimum',cc:'Min. 5 Ambassadors',pm:'Min. 5 Campus Coordinators',pfc:'Min. 5 Project Managers'};
+  const roleDeadline={ambassador:'7:00 PM daily',cc:'7:30 PM daily',pm:'8:00 PM daily',pfc:'9:00 PM daily'};
+  const roleFine={ambassador:'₦500',cc:'₦1,000',pm:'₦2,000',pfc:'₦3,000'};
+  const r=user.role;
+
   return(
     <div style={{maxWidth:600,margin:'0 auto',background:'var(--bg)',minHeight:'100vh'}}>
+      {showConsent&&(
+        <div style={{position:'fixed',inset:0,background:'rgba(0,0,0,.65)',zIndex:9999,display:'flex',alignItems:'flex-start',justifyContent:'center',padding:'16px',overflowY:'auto'}}>
+          <div style={{background:'#fff',borderRadius:20,padding:20,maxWidth:460,width:'100%',marginTop:8,marginBottom:8}}>
+            <div style={{background:'var(--blue)',borderRadius:14,padding:'14px 16px',marginBottom:12,color:'#fff'}}>
+              <div style={{fontWeight:900,fontSize:16}}>📋 Welcome to RehoVTU!</div>
+              <div style={{fontSize:12,opacity:.8}}>Read your member agreement as {ROLE_LABELS[r]}</div>
+            </div>
+            <div style={{background:'#f0f4ff',borderRadius:12,padding:14,marginBottom:10,fontSize:13,lineHeight:1.8,color:'#111'}}>
+              <b>Earnings:</b> {roleEarn[r]}<br/>
+              <b>Team:</b> {roleTeam[r]}<br/>
+              <b>Report by:</b> {roleDeadline[r]}<br/>
+              <b>Missed fine:</b> {roleFine[r]} per day
+            </div>
+            <div style={{background:'#fff3e0',borderRadius:12,padding:14,marginBottom:10,fontSize:13,lineHeight:1.8,color:'#111'}}>
+              <b>Rules</b><br/>
+              1. Submit daily reports before your deadline every weekday.<br/>
+              2. Fake signups lead to immediate removal without payout.<br/>
+              3. Payment disputes must be raised within 7 days.<br/>
+              4. All member data and earnings structures are confidential.
+            </div>
+            <div style={{background:'#f9f0ff',borderRadius:12,padding:14,marginBottom:12,fontSize:13,lineHeight:1.7,color:'#111'}}>
+              <b>Non-Disclosure</b><br/>
+              You agree to keep all internal commission structures, member data, referral networks and business strategies strictly confidential during and after your membership.
+            </div>
+            <label style={{display:'flex',gap:10,alignItems:'flex-start',marginBottom:14,cursor:'pointer',padding:'10px 12px',background:'#f5f5f5',borderRadius:10}}>
+              <input type="checkbox" checked={consented} onChange={e=>setConsented(e.target.checked)} style={{marginTop:3,width:18,height:18,accentColor:'var(--blue)',flexShrink:0}}/>
+              <span style={{fontSize:13,color:'#333',lineHeight:1.6}}>I have read and agreed to the Role Agreement, Rules and NDA.</span>
+            </label>
+            <Btn full onClick={acceptConsent}>I Agree — Enter Dashboard</Btn>
+          </div>
+        </div>
+      )}
       <DashHeader user={user} onLogout={onLogout} unreadNotif={unreadDM+unreadIn}/>
       <div style={{background:'#fff',padding:'8px 12px',borderBottom:'1px solid var(--border)',position:'sticky',top:68,zIndex:90}}>
         <Tabs tabs={tabs} active={tab} onSelect={setTab}/>
