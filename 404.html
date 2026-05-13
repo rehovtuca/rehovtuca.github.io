@@ -869,7 +869,7 @@ function DashHeader({user,onLogout,unreadNotif}){
 // ── REFERRAL LINK INLINE (used on Home tab) ────────────────────────────────
 function RefLinkInline({user}){
   const [copied,setCopied]=useState(false);
-  const BASE=window.location.origin;
+  const BASE='https://rehovtucap.github.io';
   const link=`${BASE}/?ref=${user?.code}`;
   const copy=()=>{
     navigator.clipboard?.writeText(link).then(()=>{setCopied(true);setTimeout(()=>setCopied(false),2500);});
