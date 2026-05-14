@@ -732,6 +732,7 @@ function TeamReg({users,saveUsers,onNavigate}){
       id:nc,code:nc,
       ...form,
       ref:sessionStorage.getItem('ref_code')||form.ref||'',
+      referredBy:sessionStorage.getItem('ref_code')||form.ref||'',
       email:emailLower,
       joined:TODAY,
       approved:true,
@@ -2186,7 +2187,7 @@ function SignupsTab({user,signups}){
 function MemberSummaryModal({member,users,signups,reports,onClose}){
   const {start}=getMonthRange();
   const confirmedMonth=signups.filter(s=>s.date>=start&&s.founderApproved!==false);
-  const directTeam=Object.values(users).filter(u=>u.referredBy===member.code&&u.approved&&!u.resigned);
+  const directTeam=Object.values(users).filter(u=>(u.ref===member.code||u.referredBy===member.code)&&u.approved&&!u.resigned);
   const treeSize=getFullTree(member.code||member.id,users).length;
   const myReports=(reports||[]).filter(r=>r.userCode===member.code&&r.date>=start);
   const totalDed=(member.deductions||[]).reduce((a,d)=>a+(d.amount||0),0);
@@ -2281,16 +2282,16 @@ function TeamTab({user,users,signups,reports}){
   const {start}=getMonthRange();
   const [selected,setSelected]=useState(null);
   const confirmedMonth=signups.filter(s=>s.date>=start&&s.founderApproved!==false);
-  const myTeam=Object.values(users).filter(u=>u.referredBy===user.code&&u.approved&&!u.resigned);
+  const myTeam=Object.values(users).filter(u=>(u.ref===user.code||u.referredBy===user.code)&&u.approved&&!u.resigned);
 
   const getTeamSu=(m)=>{
     if(m.role==='ambassador') return confirmedMonth.filter(s=>s.ref===m.code).length;
     if(m.role==='cc'){
-      const ambs=Object.values(users).filter(u=>u.referredBy===m.code&&u.approved&&!u.resigned);
+      const ambs=Object.values(users).filter(u=>(u.ref===m.code||u.referredBy===m.code)&&u.approved&&!u.resigned);
       return confirmedMonth.filter(s=>ambs.map(a=>a.code).includes(s.ref)).length;
     }
     if(m.role==='pm'){
-      const ccs=Object.values(users).filter(u=>u.referredBy===m.code&&u.approved&&!u.resigned);
+      const ccs=Object.values(users).filter(u=>(u.ref===m.code||u.referredBy===m.code)&&u.approved&&!u.resigned);
       const ambs=Object.values(users).filter(u=>ccs.map(c=>c.code).includes(u.referredBy)&&u.approved&&!u.resigned);
       return confirmedMonth.filter(s=>ambs.map(a=>a.code).includes(s.ref)).length;
     }
@@ -2311,7 +2312,7 @@ function TeamTab({user,users,signups,reports}){
         const su=getTeamSu(m);
         const tgt=getTgt(m.role);
         const pct=Math.min(100,Math.round(su/tgt*100));
-        const direct=Object.values(users).filter(u=>u.referredBy===m.code&&u.approved&&!u.resigned).length;
+        const direct=Object.values(users).filter(u=>(u.ref===m.code||u.referredBy===m.code)&&u.approved&&!u.resigned).length;
         return(
           <div key={m.code||m.id} onClick={()=>setSelected(m)}
             style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,boxShadow:'var(--shadow)',cursor:'pointer'}}>
@@ -2594,17 +2595,31 @@ function FounderPanel({appState}){
   // ── TRANSFER TREE ──
   const uplineRoleOf={ambassador:'cc',cc:'pm',pm:'pfc',pfc:'founder'};
   const TransferModal=({u})=>{
-    const [pick,setPick]=useState('');const [err,setErr]=useState('');
+    const [pick,setPick]=useState('');const [err,setErr]=useState('');const [saving,setSaving]=useState(false);
     const ulRole=uplineRoleOf[u.role];
-    const targets=Object.values(users).filter(m=>m.approved&&!m.resigned&&m.code!==u.code&&(ulRole==='founder'?m.role==='founder':m.role===ulRole));
+    // Show all valid upline targets for this role
+    const targets=Object.values(users).filter(m=>
+      m.approved&&!m.resigned&&m.code!==u.code&&
+      (ulRole==='founder'?m.role==='founder':m.role===ulRole)
+    );
     const doTransfer=async()=>{
       if(!pick){setErr('Select a new upline first');return;}
-      const t=users[pick];if(!t)return;
-      await saveUsers({...users,[u.code]:{...users[u.code],ref:pick,referredBy:pick}});
-      await pushNotif(pick,u.name+' and their team have been transferred to you.');
-      await pushNotif(u.code,'Your upline has been changed to '+t.name+'.');
-      setTransferTarget(null);
-      alert(u.name+' is now under '+t.name+'.');
+      const t=users[pick];if(!t){setErr('Member not found');return;}
+      setSaving(true);
+      try{
+        // Build updated users with both ref AND referredBy updated
+        const updated={...users};
+        updated[u.code]={...updated[u.code],ref:pick,referredBy:pick};
+        await saveUsers(updated);
+        await pushNotif(pick,u.name+' ('+ROLE_LABELS[u.role]+') and their team have been transferred to you.');
+        await pushNotif(u.code,'Your upline has been changed to '+t.name+'.');
+        setTransferTarget(null);
+        alert('✅ Done! '+u.name+' is now under '+t.name+'.');
+      }catch(e){
+        setErr('Transfer failed. Please try again.');
+        console.error('Transfer error:',e);
+      }
+      setSaving(false);
     };
     return(
       <Modal title={'Transfer: '+u.name} onClose={()=>setTransferTarget(null)}>
@@ -2620,7 +2635,7 @@ function FounderPanel({appState}){
           </label>
         ))}
         {err&&<div style={{color:'#c62828',fontSize:13,marginTop:4}}>{err}</div>}
-        <Btn full onClick={doTransfer} style={{marginTop:12}}>Confirm Transfer</Btn>
+        <Btn full onClick={doTransfer} disabled={saving} style={{marginTop:12}}>{saving?'Transferring...':'Confirm Transfer'}</Btn>
       </Modal>
     );
   };
