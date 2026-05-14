@@ -2970,12 +2970,7 @@ function FounderPanel({appState}){
                 <Btn small onClick={()=>setSummaryTarget(u)} variant="ghost">👁 Summary</Btn>
                 <Btn small onClick={()=>setFineTarget(u.code||u.id)} variant="ghost">💰 Fines</Btn>
                 <Btn small onClick={()=>setResetTarget(u)} variant="ghost">🔑 Details</Btn>
-                <Btn small onClick={async()=>{
-                  const k=u.code||u.id;
-                  await saveUsers({...users,[k]:{...u,verified:!u.verified}});
-                }} variant={u.verified?'outline':'green'}>
-                  {u.verified?'⏳ Unverify':'✓ Verify'}
-                </Btn>
+                
                 <Btn small onClick={()=>setPromoteTarget(u)} variant="ghost">⬆⬇ Role</Btn>
                 <Btn small onClick={()=>setTransferTarget(u)} variant="ghost">🔀 Transfer</Btn>
                 <Btn small onClick={()=>setResignTarget(u)} variant="outline">🚪 Resign</Btn>
@@ -3043,7 +3038,7 @@ function FounderPanel({appState}){
   const PendingMembersTab=()=>(
     <div>
       <div style={{fontWeight:700,marginBottom:6,fontSize:14}}>Unverified Members ({pendingMembers.length})</div>
-      <div style={{fontSize:12,color:'var(--muted)',marginBottom:10}}>These members registered and can log in, but haven't been verified by you yet. Tap ✓ Verify on their card in Ambs/CCs/PMs/PFCs tabs, or delete them if unwanted.</div>
+      <div style={{fontSize:12,color:'var(--muted)',marginBottom:10}}>These members are registered and active. You can delete any member from their role tab if needed.</div>
       {pendingMembers.map(u=>(
         <div key={u.id||u.code} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,boxShadow:'var(--shadow)',border:'1.5px solid #fde68a'}}>
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
@@ -3252,7 +3247,7 @@ function FounderPanel({appState}){
 
   const TABS=[
     {id:'overview',label:'Overview'},
-    {id:'pending',label:'Unverified',badge:pendingMembers.length},
+
     {id:'signups_q',label:'Sign-ups',badge:pendingSignups.filter(s=>s.founderApproved===undefined).length},
     {id:'ambs',label:'Ambs'},
     {id:'ccs',label:'CCs'},
@@ -3462,22 +3457,50 @@ function useAppState(){
   useEffect(()=>{
     const ref=new URLSearchParams(window.location.search).get('ref');
     if(ref)sessionStorage.setItem('ref_code',ref);
+    const rc=sessionStorage.getItem('ref_code');
     const fallback=setTimeout(()=>{
-      const rc=sessionStorage.getItem('ref_code');
       setScreen(rc?'team':'landing');
-    },7000);
-    setTimeout(async()=>{
+    },10000);
+    const loadData=async(attempt=1)=>{
       try{
-        const[u,s,st,b,d,g,r]=await Promise.all([DB.get('users'),DB.get('signups'),DB.get('settings'),DB.get('broadcasts'),DB.get('dms'),DB.get('grp'),DB.get('reports')]);
+        const[u,s,st,b,d,g,r]=await Promise.all([
+          DB.get('users'),DB.get('signups'),DB.get('settings'),
+          DB.get('broadcasts'),DB.get('dms'),DB.get('grp'),DB.get('reports')
+        ]);
         const au=u||{};
         if(!au['FOUNDER'])au['FOUNDER']=FOUNDER_ACCT;
-        setUsers(au);setSignups(s||[]);setSettings(st||DEFAULT_SETTINGS);
-        setBroadcasts(b||[]);setDms(d||[]);setGrp(g||[]);setReports(r||[]);
-      }catch(e){console.warn('DB error',e);}
-      clearTimeout(fallback);
-      const rc=sessionStorage.getItem('ref_code');
-      setScreen(rc?'team':'landing');
-    },500);
+        // Validate data loaded — if users is empty and we have localStorage, retry
+        const lsUsers=JSON.parse(localStorage.getItem('rv_users')||'{}');
+        const finalUsers=Object.keys(au).length>1?au:(Object.keys(lsUsers).length>1?lsUsers:au);
+        setUsers(finalUsers);
+        setSignups(s||JSON.parse(localStorage.getItem('rv_signups')||'[]'));
+        setSettings(st||DEFAULT_SETTINGS);
+        setBroadcasts(b||JSON.parse(localStorage.getItem('rv_broadcasts')||'[]'));
+        setDms(d||JSON.parse(localStorage.getItem('rv_dms')||'[]'));
+        setGrp(g||JSON.parse(localStorage.getItem('rv_grp')||'[]'));
+        setReports(r||JSON.parse(localStorage.getItem('rv_reports')||'[]'));
+        clearTimeout(fallback);
+        setScreen(rc?'team':'landing');
+      }catch(e){
+        console.warn('DB load attempt',attempt,e);
+        if(attempt<3){setTimeout(()=>loadData(attempt+1),2000);}
+        else{
+          // Last resort: use localStorage data
+          const lsU=JSON.parse(localStorage.getItem('rv_users')||'{}');
+          if(!lsU['FOUNDER'])lsU['FOUNDER']=FOUNDER_ACCT;
+          setUsers(lsU);
+          setSignups(JSON.parse(localStorage.getItem('rv_signups')||'[]'));
+          setSettings(DEFAULT_SETTINGS);
+          setBroadcasts(JSON.parse(localStorage.getItem('rv_broadcasts')||'[]'));
+          setDms(JSON.parse(localStorage.getItem('rv_dms')||'[]'));
+          setGrp(JSON.parse(localStorage.getItem('rv_grp')||'[]'));
+          setReports(JSON.parse(localStorage.getItem('rv_reports')||'[]'));
+          clearTimeout(fallback);
+          setScreen(rc?'team':'landing');
+        }
+      }
+    };
+    setTimeout(loadData,300);
   },[]);
 
   // sync logged-in user with store
