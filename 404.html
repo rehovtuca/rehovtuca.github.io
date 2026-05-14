@@ -98,7 +98,7 @@ const DB={
   async get(k){
     try{
       const ctrl=new AbortController();
-      const tid=setTimeout(()=>ctrl.abort(),4000);
+      const tid=setTimeout(()=>ctrl.abort(),5000);
       const r=await fetch(`${FB_URL}/${encodeURIComponent(k)}`,{
         headers:{'Content-Type':'application/json'},
         cache:'no-store',signal:ctrl.signal
@@ -711,12 +711,12 @@ function TeamReg({users,saveUsers,onNavigate}){
     name:'',phone:'',email:'',password:'',state:'',occupation:'',
     accName:'',accNum:'',bank:'',
     secQ:"What is your mother's maiden name?",secA:'',
-    role:'ambassador',ref:refCode
+    role:autoRole||'ambassador',ref:refCode
   });
   useEffect(()=>{
     if(!refCode||!Object.keys(users).length)return;
     const ru=Object.values(users).find(u=>u.code===refCode);
-    if(ru){setForm(f=>({...f,role:DOWNLINE[ru.role]||'ambassador',ref:refCode}));}
+    if(ru)setForm(f=>({...f,role:DOWNLINE[ru.role]||'ambassador',ref:refCode}));
   },[users,refCode]);
   const [err,setErr]=useState('');const [done,setDone]=useState(false);
   const set=k=>e=>setForm(f=>({...f,[k]:e.target.value}));
@@ -735,7 +735,7 @@ function TeamReg({users,saveUsers,onNavigate}){
       email:emailLower,
       joined:TODAY,
       approved:true,
-      verified:false,
+      verified:true,
       avatar:'',
       notifications:[{
         msg:`🎉 Welcome to RehoVTU! Your member code is ${nc}. You can now log in with your email and password.`,
@@ -1543,53 +1543,6 @@ function MeetingTab({user,users,saveUsers}){
 }
 
 // ── GROUP CHAT TAB ─────────────────────────────────────────────────────────
-function PendingApprovalsTab({user,users,saveUsers,pushNotif}){
-  const pending=Object.values(users).filter(u=>u.ref===user.code&&!u.approved&&!u.resigned);
-  const downRole={cc:'Ambassador',pm:'Campus Coordinator',pfc:'Project Manager'}[user.role]||'Member';
-  return(
-    <div>
-      <div style={{fontWeight:800,fontSize:16,color:'var(--blue)',marginBottom:4}}>
-        Pending Approvals
-      </div>
-      <div style={{fontSize:13,color:'var(--muted)',marginBottom:14}}>
-        These {downRole}s registered via your link and are waiting for your approval.
-      </div>
-      {pending.length===0&&(
-        <div style={{textAlign:'center',padding:40,color:'var(--muted)',fontSize:14}}>
-          No pending approvals 🎉
-        </div>
-      )}
-      {pending.map(u=>(
-        <div key={u.code} style={{background:'#fff',borderRadius:14,padding:14,marginBottom:10,boxShadow:'var(--shadow)',border:'1.5px solid #fde68a'}}>
-          <div style={{display:'flex',alignItems:'center',gap:10,marginBottom:10}}>
-            <Ava user={u} size={36}/>
-            <div style={{flex:1,minWidth:0}}>
-              <div style={{fontWeight:700,fontSize:14}}>{u.name}</div>
-              <div style={{fontSize:12,color:'var(--muted)'}}>{ROLE_LABELS[u.role]} · {u.code}</div>
-              <div style={{fontSize:12,color:'var(--muted)'}}>{u.phone} · {u.state}</div>
-              <div style={{fontSize:12,color:'var(--muted)'}}>{u.email}</div>
-            </div>
-          </div>
-          <div style={{display:'flex',gap:8}}>
-            <Btn small variant="green" onClick={async()=>{
-              const nu={...users,[u.code]:{...u,approved:true,verified:true,
-                notifications:[{msg:'✅ Your account has been approved by '+user.name+'! You can now log in.',time:new Date().toISOString(),read:false},...(u.notifications||[])]}};
-              await saveUsers(nu);
-              await pushNotif(u.code,'✅ Your account has been approved by '+user.name+'! Welcome to the team.');
-            }}>✓ Approve</Btn>
-            <Btn small variant="danger" onClick={async()=>{
-              if(!window.confirm('Reject '+u.name+'? They will be deleted.'))return;
-              const nu={...users};delete nu[u.code];
-              await saveUsers(nu);
-            }}>✕ Reject</Btn>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-
 function GrpTab({user,grp,saveGrp,users}){
   const [msg,setMsg]=useState('');
   const endRef=useRef();
@@ -2555,7 +2508,7 @@ function FounderPanel({appState}){
   const [tab,setTab]=useState('overview');
   const [fineTarget,setFineTarget]=useState(null);
   const [resignTarget,setResignTarget]=useState(null);  // user being resigned
-  const [promoteTarget,setPromoteTarget]=useState(null); // {user, direction:'up'|'down'}
+  const [promoteTarget,setPromoteTarget]=useState(null);
   const [transferTarget,setTransferTarget]=useState(null);
   const [moveTarget,setMoveTarget]=useState(null);       // after resign: {user, replacementCode}
   const {start}=getMonthRange();
@@ -2565,7 +2518,7 @@ function FounderPanel({appState}){
   const confirmed=signups.filter(s=>s.pfcStatus==='Confirmed');
   const built=signups.filter(s=>s.siteBuilt);
   const noRef=signups.filter(s=>!s.ref||s.ref.trim()==='');
-  const pendingMembers=Object.values(users).filter(u=>u.approved&&!u.verified&&u.id!=='FOUNDER'&&!u.resigned);
+  const pendingMembers=[];
   const pendingSignups=signups.filter(s=>s.founderApproved===false||s.founderApproved===undefined);
   const revenue=thisMonthSu.length*950;
 
@@ -2604,13 +2557,12 @@ function FounderPanel({appState}){
     if(!su)return;
     const notifyChain=async(code,depth=0)=>{
       if(!code||depth>5)return;
-      const m=users[code];
-      if(!m)return;
+      const m=users[code];if(!m)return;
       await pushNotif(code,`💰 Payment confirmed: ${su.name} joined via your network!`);
       if(m.ref)await notifyChain(m.ref,depth+1);
     };
     if(su.ref)await notifyChain(su.ref);
-    await pushNotif('FOUNDER',`💰 Payment confirmed: ${su.name}. Ref: ${su.ref||'Direct'}.`);
+    await pushNotif('FOUNDER',`💰 Payment confirmed: ${su.name}.`);
   };
   const rejectSignup=async id=>{
     const ns=signups.map(s=>s.id===id?{...s,founderApproved:false,pfcStatus:'Rejected'}:s);
@@ -2642,31 +2594,25 @@ function FounderPanel({appState}){
   // ── TRANSFER TREE ──
   const uplineRoleOf={ambassador:'cc',cc:'pm',pm:'pfc',pfc:'founder'};
   const TransferModal=({u})=>{
-    const [pick,setPick]=useState('');
-    const [err,setErr]=useState('');
+    const [pick,setPick]=useState('');const [err,setErr]=useState('');
     const ulRole=uplineRoleOf[u.role];
-    const targets=Object.values(users).filter(m=>
-      m.approved&&!m.resigned&&m.code!==u.code&&
-      (ulRole==='founder'?m.role==='founder':m.role===ulRole)
-    );
+    const targets=Object.values(users).filter(m=>m.approved&&!m.resigned&&m.code!==u.code&&(ulRole==='founder'?m.role==='founder':m.role===ulRole));
     const doTransfer=async()=>{
       if(!pick){setErr('Select a new upline first');return;}
-      const t=users[pick];
-      if(!t)return;
-      const nu={...users,[u.code]:{...users[u.code],ref:pick,referredBy:pick}};
-      await saveUsers(nu);
+      const t=users[pick];if(!t)return;
+      await saveUsers({...users,[u.code]:{...users[u.code],ref:pick,referredBy:pick}});
       await pushNotif(pick,u.name+' and their team have been transferred to you.');
       await pushNotif(u.code,'Your upline has been changed to '+t.name+'.');
       setTransferTarget(null);
       alert(u.name+' is now under '+t.name+'.');
     };
     return(
-      <Modal title={'Transfer Tree: '+u.name} onClose={()=>setTransferTarget(null)}>
+      <Modal title={'Transfer: '+u.name} onClose={()=>setTransferTarget(null)}>
         <div style={{background:'#fff8f0',border:'1.5px solid var(--orange)',borderRadius:10,padding:'10px 14px',marginBottom:12,fontSize:13,color:'#92400e'}}>
-          Moving <b>{u.name}</b> ({ROLE_LABELS[u.role]}) to a new {ROLE_LABELS[ulRole]||'upline'}. Their full downline moves with them.
+          Moving <b>{u.name}</b> ({ROLE_LABELS[u.role]}) to a new upline. Their downline moves with them.
         </div>
         <div style={{fontSize:13,color:'var(--muted)',marginBottom:10}}>Current upline: <b>{u.ref?users[u.ref]?.name||u.ref:'None'}</b></div>
-        {targets.length===0&&<div style={{color:'var(--muted)',fontSize:13,padding:12}}>No valid upline members available.</div>}
+        {targets.length===0&&<div style={{color:'var(--muted)',fontSize:13,padding:12}}>No valid upline members found.</div>}
         {targets.map(m=>(
           <label key={m.code} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 12px',borderRadius:10,marginBottom:6,cursor:'pointer',background:pick===m.code?'#e8f0fe':'#f5f5f5',border:pick===m.code?'1.5px solid var(--blue)':'1.5px solid transparent'}}>
             <input type="radio" name="tr" checked={pick===m.code} onChange={()=>setPick(m.code)} style={{accentColor:'var(--blue)'}}/>
@@ -2970,7 +2916,12 @@ function FounderPanel({appState}){
                 <Btn small onClick={()=>setSummaryTarget(u)} variant="ghost">👁 Summary</Btn>
                 <Btn small onClick={()=>setFineTarget(u.code||u.id)} variant="ghost">💰 Fines</Btn>
                 <Btn small onClick={()=>setResetTarget(u)} variant="ghost">🔑 Details</Btn>
-                
+                <Btn small onClick={async()=>{
+                  const k=u.code||u.id;
+                  await saveUsers({...users,[k]:{...u,verified:!u.verified}});
+                }} variant={u.verified?'outline':'green'}>
+                  {u.verified?'⏳ Unverify':'✓ Verify'}
+                </Btn>
                 <Btn small onClick={()=>setPromoteTarget(u)} variant="ghost">⬆⬇ Role</Btn>
                 <Btn small onClick={()=>setTransferTarget(u)} variant="ghost">🔀 Transfer</Btn>
                 <Btn small onClick={()=>setResignTarget(u)} variant="outline">🚪 Resign</Btn>
@@ -3038,7 +2989,7 @@ function FounderPanel({appState}){
   const PendingMembersTab=()=>(
     <div>
       <div style={{fontWeight:700,marginBottom:6,fontSize:14}}>Unverified Members ({pendingMembers.length})</div>
-      <div style={{fontSize:12,color:'var(--muted)',marginBottom:10}}>These members are registered and active. You can delete any member from their role tab if needed.</div>
+      <div style={{fontSize:12,color:'var(--muted)',marginBottom:10}}>These members registered and can log in, but haven't been verified by you yet. Tap ✓ Verify on their card in Ambs/CCs/PMs/PFCs tabs, or delete them if unwanted.</div>
       {pendingMembers.map(u=>(
         <div key={u.id||u.code} style={{background:'#fff',borderRadius:12,padding:'12px 14px',marginBottom:8,boxShadow:'var(--shadow)',border:'1.5px solid #fde68a'}}>
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:8}}>
@@ -3050,7 +3001,7 @@ function FounderPanel({appState}){
             </div>
           </div>
           <div style={{display:'flex',gap:8}}>
-            <Btn small onClick={async()=>{const k=u.code||u.id;await saveUsers({...users,[k]:{...u,approved:true,verified:true,notifications:[{msg:'✅ Your account has been approved by the Founder! Welcome to RehoVTU.',time:new Date().toISOString(),read:false},...(u.notifications||[])]}});await pushNotif(k,'✅ Your PFC account has been approved by the Founder!');}} variant="green">✓ Approve</Btn>
+            <Btn small onClick={async()=>{const k=u.code||u.id;await saveUsers({...users,[k]:{...u,verified:true}});}} variant="green">✓ Verify</Btn>
             <Btn small onClick={async()=>{if(window.confirm(`Delete ${u.name}?`)){const nu={...users};delete nu[u.code||u.id];await saveUsers(nu);}}} variant="danger">✕ Delete</Btn>
           </div>
         </div>
@@ -3189,8 +3140,8 @@ function FounderPanel({appState}){
       const newMember={
         id:nc,code:nc,name:form.name,phone:form.phone,email:form.email,
         password:form.password,state:form.state,role:form.role,
-        ref:form.ref||'FOUNDER',
-        referredBy:form.ref||'FOUNDER',accName:form.accName,accNum:form.accNum,bank:form.bank,
+        ref:form.ref||'FOUNDER',referredBy:form.ref||'FOUNDER',
+        accName:form.accName,accNum:form.accNum,bank:form.bank,
         joined:TODAY,approved:true,avatar:'',notifications:[
           {msg:`Welcome to RehoVTU! Your code is ${nc}. Login with your email and password.`,time:new Date().toISOString(),read:false}
         ],deductions:[],bonuses:[]
@@ -3247,7 +3198,6 @@ function FounderPanel({appState}){
 
   const TABS=[
     {id:'overview',label:'Overview'},
-
     {id:'signups_q',label:'Sign-ups',badge:pendingSignups.filter(s=>s.founderApproved===undefined).length},
     {id:'ambs',label:'Ambs'},
     {id:'ccs',label:'CCs'},
@@ -3342,7 +3292,6 @@ function MemberDashboard({user,appState,onLogout}){
         {tab==='team'&&<TeamTab user={user} users={users} signups={signups} reports={reports}/>}
         {tab==='rec'&&<RecTab user={user} users={users} saveUsers={saveUsers} pushNotif={pushNotif}/>}
         {tab==='build'&&<BuildTab users={users} saveUsers={saveUsers} pushNotif={pushNotif}/>}
-        {tab==='pending'&&<PendingApprovalsTab user={user} users={users} saveUsers={saveUsers} pushNotif={pushNotif}/>}
         {tab==='confirm'&&<ConfirmTab signups={signups} saveSignups={saveSignups} pushNotif={pushNotif}/>}
         {tab==='allsu'&&<AllSignupsTab signups={signups} saveSignups={saveSignups}/>}
       </div>
@@ -3458,10 +3407,27 @@ function useAppState(){
     const ref=new URLSearchParams(window.location.search).get('ref');
     if(ref)sessionStorage.setItem('ref_code',ref);
     const rc=sessionStorage.getItem('ref_code');
-    const fallback=setTimeout(()=>{
-      setScreen(rc?'team':'landing');
-    },10000);
-    const loadData=async(attempt=1)=>{
+
+    // INSTANT LOAD from localStorage so users never see empty
+    const lsU=JSON.parse(localStorage.getItem('rv_users')||'{}');
+    if(!lsU['FOUNDER'])lsU['FOUNDER']=FOUNDER_ACCT;
+    const lsS=JSON.parse(localStorage.getItem('rv_signups')||'[]');
+    const lsSt=JSON.parse(localStorage.getItem('rv_settings')||'null');
+    const lsB=JSON.parse(localStorage.getItem('rv_broadcasts')||'[]');
+    const lsD=JSON.parse(localStorage.getItem('rv_dms')||'[]');
+    const lsG=JSON.parse(localStorage.getItem('rv_grp')||'[]');
+    const lsR=JSON.parse(localStorage.getItem('rv_reports')||'[]');
+    setUsers(lsU);setSignups(lsS);setSettings(lsSt||DEFAULT_SETTINGS);
+    setBroadcasts(lsB);setDms(lsD);setGrp(lsG);setReports(lsR);
+
+    // If came via ref link, go straight to registration after setting local data
+    if(rc){setTimeout(()=>setScreen('team'),300);return;}
+
+    // Show landing immediately from localStorage, then sync Firebase in background
+    setScreen('landing');
+
+    // Background Firebase sync — updates data silently without disrupting user
+    const syncFirebase=async(attempt=1)=>{
       try{
         const[u,s,st,b,d,g,r]=await Promise.all([
           DB.get('users'),DB.get('signups'),DB.get('settings'),
@@ -3469,38 +3435,20 @@ function useAppState(){
         ]);
         const au=u||{};
         if(!au['FOUNDER'])au['FOUNDER']=FOUNDER_ACCT;
-        // Validate data loaded — if users is empty and we have localStorage, retry
-        const lsUsers=JSON.parse(localStorage.getItem('rv_users')||'{}');
-        const finalUsers=Object.keys(au).length>1?au:(Object.keys(lsUsers).length>1?lsUsers:au);
-        setUsers(finalUsers);
-        setSignups(s||JSON.parse(localStorage.getItem('rv_signups')||'[]'));
-        setSettings(st||DEFAULT_SETTINGS);
-        setBroadcasts(b||JSON.parse(localStorage.getItem('rv_broadcasts')||'[]'));
-        setDms(d||JSON.parse(localStorage.getItem('rv_dms')||'[]'));
-        setGrp(g||JSON.parse(localStorage.getItem('rv_grp')||'[]'));
-        setReports(r||JSON.parse(localStorage.getItem('rv_reports')||'[]'));
-        clearTimeout(fallback);
-        setScreen(rc?'team':'landing');
+        // Only update if Firebase returned meaningful data
+        if(Object.keys(au).length>0)setUsers(au);
+        if(s&&s.length>=0)setSignups(s);
+        if(st)setSettings(st);
+        if(b&&b.length>=0)setBroadcasts(b);
+        if(d&&d.length>=0)setDms(d);
+        if(g&&g.length>=0)setGrp(g);
+        if(r&&r.length>=0)setReports(r);
       }catch(e){
-        console.warn('DB load attempt',attempt,e);
-        if(attempt<3){setTimeout(()=>loadData(attempt+1),2000);}
-        else{
-          // Last resort: use localStorage data
-          const lsU=JSON.parse(localStorage.getItem('rv_users')||'{}');
-          if(!lsU['FOUNDER'])lsU['FOUNDER']=FOUNDER_ACCT;
-          setUsers(lsU);
-          setSignups(JSON.parse(localStorage.getItem('rv_signups')||'[]'));
-          setSettings(DEFAULT_SETTINGS);
-          setBroadcasts(JSON.parse(localStorage.getItem('rv_broadcasts')||'[]'));
-          setDms(JSON.parse(localStorage.getItem('rv_dms')||'[]'));
-          setGrp(JSON.parse(localStorage.getItem('rv_grp')||'[]'));
-          setReports(JSON.parse(localStorage.getItem('rv_reports')||'[]'));
-          clearTimeout(fallback);
-          setScreen(rc?'team':'landing');
-        }
+        console.warn('Firebase sync attempt',attempt,'failed:',e);
+        if(attempt<5)setTimeout(()=>syncFirebase(attempt+1),attempt*3000);
       }
     };
-    setTimeout(loadData,300);
+    setTimeout(syncFirebase,1000);
   },[]);
 
   // sync logged-in user with store
@@ -3521,8 +3469,7 @@ function useAppState(){
     const dedKey='rv_ded_'+todayStr;
     if(localStorage.getItem(dedKey))return;
     const members=Object.values(users).filter(u=>u.approved&&u.id!=='FOUNDER'&&!u.resigned&&u.role!=='founder');
-    let changed=false;
-    const nu={...users};
+    let changed=false;const nu={...users};
     members.forEach(u=>{
       if(!DEDUCTIONS[u.role])return;
       const submitted=reports.some(r=>r.userCode===u.code&&r.date===todayStr&&r.type==='daily');
