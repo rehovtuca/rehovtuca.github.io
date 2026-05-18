@@ -2,185 +2,236 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>RehoVTU Team Portal</title>
-<link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0a1628">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>RehoVTU Manager</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&family=DM+Mono:wght@400;500&display=swap');
+:root{
+  --navy:#0f1b35;--blue:#1a3a8f;--gold:#e8a020;--gold-light:#fef3dc;
+  --green:#1a6b3c;--green-light:#d4f0e0;--red:#b91c1c;--red-light:#fee2e2;
+  --gray:#64748b;--border:#e2e8f0;--bg:#f8fafc;--white:#fff;
+  --text:#0f172a;--muted:#94a3b8;
+  --shadow:0 1px 3px rgba(0,0,0,.08),0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:0 4px 12px rgba(0,0,0,.10);
+}
 *{box-sizing:border-box;margin:0;padding:0;}
-body{font-family:sans-serif;background:#0a1628;}
-.page{display:none;min-height:100vh;}
-.page.active{display:block;}
-input,select{width:100%;padding:11px 12px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:sans-serif;background:#fff;-webkit-appearance:none;}
-input:focus,select:focus{outline:none;border-color:#1a3a8f;}
-label{display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px;}
-.field{margin-bottom:13px;}
-.card{background:#fff;border-radius:16px;padding:22px;max-width:400px;margin:0 auto;}
-.err{background:#fee2e2;color:#b91c1c;padding:10px 13px;border-radius:8px;font-size:13px;margin-bottom:12px;display:none;}
-.ok{background:#d4f0e0;color:#1a6b3c;padding:10px 13px;border-radius:8px;font-size:13px;margin-bottom:12px;display:none;}
-.back{display:flex;align-items:center;gap:8px;color:rgba(255,255,255,.7);font-size:14px;cursor:pointer;padding:16px 20px;}
-.back span:first-child{color:#e8a020;font-size:20px;}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:14px;line-height:1.5;min-height:100vh;}
+/* ── HEADER ── */
+.hdr{background:var(--navy);color:#fff;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(0,0,0,.2);}
+.hdr-title{font-size:17px;font-weight:800;letter-spacing:.3px;}
+.hdr-sub{font-size:11px;color:var(--gold);font-weight:500;margin-top:1px;}
+.hdr-right{text-align:right;font-size:12px;color:rgba(255,255,255,.6);}
+.hdr-right strong{color:#fff;display:block;font-size:13px;}
+.logout-btn{background:rgba(255,255,255,.15);border:none;border-radius:6px;color:#fff;font-size:11px;padding:3px 8px;cursor:pointer;margin-top:3px;}
+/* ── NAV ── */
+.nav{background:#fff;border-bottom:1px solid var(--border);display:flex;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;position:sticky;top:57px;z-index:99;}
+.nav::-webkit-scrollbar{display:none;}
+.nav-tab{flex:none;padding:11px 14px;font-size:12px;font-weight:600;color:var(--gray);cursor:pointer;border-bottom:2.5px solid transparent;white-space:nowrap;background:none;border-top:none;border-left:none;border-right:none;transition:all .15s;font-family:'DM Sans',sans-serif;}
+.nav-tab.active{color:var(--blue);border-bottom-color:var(--blue);}
+/* ── MAIN ── */
+.main{padding:14px;max-width:640px;margin:0 auto;}
+/* ── SECTION TITLE ── */
+.sec-title{font-size:15px;font-weight:700;color:var(--navy);margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;}
+/* ── CARDS ── */
+.card{background:#fff;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:var(--shadow);border:1px solid var(--border);}
+.card-hdr{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+/* ── STATS ── */
+.stats-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;}
+.stat{background:#fff;border-radius:12px;padding:13px;box-shadow:var(--shadow);border:1px solid var(--border);}
+.stat-label{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;}
+.stat-value{font-size:20px;font-weight:700;color:var(--navy);margin-top:3px;font-family:'DM Mono',monospace;}
+.stat-sub{font-size:11px;color:var(--gray);margin-top:1px;}
+/* ── ROLE BADGE ── */
+.rb{display:inline-flex;align-items:center;padding:2px 7px;border-radius:5px;font-size:10px;font-weight:700;white-space:nowrap;}
+.rb-founder{background:#e3f0ff;color:#1a3a8f;}.rb-pfc{background:#e8eaf6;color:#1A1A2E;}
+.rb-pm{background:#f3e5f5;color:#4A148C;}.rb-cc{background:#fbe9e7;color:#E65100;}
+.rb-ambassador{background:#e8f5e9;color:#1B5E20;}
+/* ── AVATAR ── */
+.ava{border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0;}
+/* ── FORM ── */
+.fg{margin-bottom:11px;}
+.fl{display:block;font-size:11px;font-weight:700;color:var(--gray);margin-bottom:4px;text-transform:uppercase;letter-spacing:.4px;}
+.fi,.fsl,.fta{width:100%;padding:9px 11px;border:1.5px solid var(--border);border-radius:8px;font-size:14px;font-family:'DM Sans',sans-serif;color:var(--text);background:#fff;transition:border-color .15s;-webkit-appearance:none;}
+.fi:focus,.fsl:focus,.fta:focus{outline:none;border-color:var(--blue);}
+.fta{resize:vertical;min-height:75px;}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.pw-wrap{position:relative;}
+.pw-wrap .fi{padding-right:40px;}
+.pw-eye{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;color:var(--muted);}
+/* ── BUTTONS ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:9px 15px;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .15s;font-family:'DM Sans',sans-serif;}
+.btn-primary{background:var(--blue);color:#fff;}.btn-primary:hover{background:#15307a;}
+.btn-success{background:var(--green);color:#fff;}.btn-success:hover{background:#145530;}
+.btn-danger{background:var(--red);color:#fff;}.btn-danger:hover{background:#991b1b;}
+.btn-outline{background:#fff;color:var(--blue);border:1.5px solid var(--blue);}
+.btn-gold{background:var(--gold);color:#fff;}.btn-gold:hover{background:#c8881a;}
+.btn-gray{background:var(--bg);color:var(--gray);border:1px solid var(--border);}
+.btn-sm{padding:5px 11px;font-size:12px;border-radius:6px;}
+.btn-full{width:100%;}
+/* ── MISC ── */
+.divider{border:none;border-top:1px solid var(--border);margin:12px 0;}
+.empty{text-align:center;padding:36px 20px;color:var(--muted);}
+.empty-icon{font-size:30px;margin-bottom:7px;}
+.alert{padding:9px 13px;border-radius:8px;font-size:13px;margin-bottom:10px;display:flex;align-items:flex-start;gap:7px;}
+.alert-success{background:var(--green-light);color:var(--green);}
+.alert-error{background:var(--red-light);color:var(--red);}
+.alert-info{background:#e0f0ff;color:#1a3a8f;}
+.alert-gold{background:var(--gold-light);color:#92600a;}
+.mono{font-family:'DM Mono',monospace;}
+.pos{color:var(--green);font-weight:600;}
+.neg{color:var(--red);font-weight:600;}
+/* ── LOG ENTRY ── */
+.log-e{background:#fff;border-radius:10px;padding:11px 13px;margin-bottom:7px;border:1px solid var(--border);box-shadow:var(--shadow);}
+/* ── OVERLAY / SHEET ── */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:flex-end;justify-content:center;}
+.sheet{background:#fff;border-radius:20px 20px 0 0;padding:18px 16px 30px;width:100%;max-width:640px;max-height:92vh;overflow-y:auto;}
+.sheet-title{font-size:15px;font-weight:700;margin-bottom:14px;color:var(--navy);display:flex;align-items:center;justify-content:space-between;}
+.close-btn{background:var(--bg);border:none;border-radius:50%;width:28px;height:28px;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--gray);flex-shrink:0;}
+.hidden{display:none!important;}
+/* ── PAYMENT ROW ── */
+.pay-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);}
+.pay-row:last-child{border-bottom:none;}
+/* ── TABLE ── */
+.tbl{width:100%;border-collapse:collapse;font-size:12px;}
+.tbl th{text-align:left;padding:7px 9px;background:var(--bg);font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:700;}
+.tbl td{padding:9px 9px;border-bottom:1px solid var(--border);vertical-align:top;}
+.tbl tr:last-child td{border-bottom:none;}
+.tbl tr:hover td{background:#f8fafc;cursor:pointer;}
+/* ── FILTER ── */
+.filter-bar{display:flex;gap:7px;margin-bottom:12px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;}
+.filter-bar::-webkit-scrollbar{display:none;}
+.chip{flex:none;padding:4px 11px;border-radius:18px;font-size:12px;font-weight:600;border:1.5px solid var(--border);background:#fff;cursor:pointer;color:var(--gray);transition:all .15s;}
+.chip.active{background:var(--blue);color:#fff;border-color:var(--blue);}
+/* ── SEARCH ── */
+.srch-wrap{position:relative;margin-bottom:12px;}
+.srch-wrap .fi{padding-left:34px;}
+.srch-icon{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--muted);font-size:15px;}
+/* ── LOGIN ── */
+.login-wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 16px;background:linear-gradient(155deg,var(--navy) 0%,#1a3a8f 100%);}
+.login-logo{font-size:32px;font-weight:800;color:#fff;letter-spacing:1px;}
+.login-logo span{color:var(--gold);}
+.login-sub{font-size:13px;color:var(--gold);margin-bottom:28px;font-weight:500;}
+.login-card{background:#fff;border-radius:16px;padding:22px;width:100%;max-width:360px;box-shadow:var(--shadow-md);}
+.login-tabs{display:flex;gap:0;margin-bottom:18px;background:var(--bg);border-radius:8px;padding:3px;}
+.login-tab{flex:1;text-align:center;padding:7px;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;color:var(--gray);border:none;background:none;font-family:'DM Sans',sans-serif;}
+.login-tab.active{background:#fff;color:var(--blue);box-shadow:var(--shadow);}
+/* ── ACCOUNT BANNER ── */
+.acct-banner{background:linear-gradient(120deg,var(--navy),var(--blue));border-radius:12px;padding:14px 16px;margin-bottom:12px;color:#fff;}
+.acct-bank{font-size:11px;opacity:.65;text-transform:uppercase;letter-spacing:.8px;}
+.acct-num{font-size:22px;font-weight:700;font-family:'DM Mono',monospace;margin:4px 0;}
+.acct-name{font-size:13px;opacity:.85;}
+/* ── REPORT TABS ── */
+.rpt-tabs{display:flex;gap:6px;margin-bottom:12px;}
+.rpt-tab{flex:1;text-align:center;padding:7px;border-radius:8px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid var(--border);background:#fff;color:var(--gray);font-family:'DM Sans',sans-serif;}
+.rpt-tab.active{background:var(--blue);color:#fff;border-color:var(--blue);}
+/* ── PROGRESS BAR ── */
+.prog-wrap{background:#e2e8f0;border-radius:99px;height:7px;margin-top:4px;overflow:hidden;}
+.prog-bar{height:100%;border-radius:99px;background:var(--green);transition:width .4s;}
+/* TREE */
+.tree-node{background:#fff;border-radius:10px;padding:11px 13px;margin-bottom:5px;border:1px solid var(--border);box-shadow:var(--shadow);}
+/* BADGE COUNT */
+.bdg{display:inline-block;background:var(--red);color:#fff;font-size:9px;font-weight:700;border-radius:9px;padding:1px 5px;margin-left:3px;vertical-align:middle;}
 </style>
 </head>
 <body>
 
-<!-- LANDING PAGE -->
-<div id="pg_landing" class="page active" style="background:linear-gradient(160deg,#0a1628,#0d2260,#0f1f3d);">
-  <div style="padding:50px 24px 40px;text-align:center;">
-    <div style="font-size:34px;font-weight:900;color:#fff;margin-bottom:4px;">Reho<span style="color:#e8a020;">VTU</span></div>
-    <div style="font-size:11px;color:#f5b944;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:28px;">Team Portal</div>
-    <div style="font-size:19px;font-weight:800;color:#fff;line-height:1.4;margin-bottom:10px;">Own a VTU Business That<br>Works While You Sleep</div>
-    <div style="font-size:13px;color:rgba(255,255,255,.6);line-height:1.7;margin-bottom:40px;">One-time ₦2,000. Live in 48hrs.<br>Earn daily — no physical presence needed.</div>
+<!-- ══════════════════ LOGIN / REGISTER ══════════════════ -->
+<div id="loginScreen">
+<div class="login-wrap">
+  <div class="login-logo">Reho<span>VTU</span></div>
+  <div class="login-sub">Team Management System</div>
+  <div class="login-card">
+    <div class="login-tabs">
+      <button class="login-tab active" onclick="switchAuth('login')">Sign In</button>
+      <button class="login-tab" onclick="switchAuth('register')">Register</button>
+      <button class="login-tab" onclick="switchAuth('reset')">Reset</button>
+    </div>
 
-    <!-- BUTTONS - plain HTML, no classes -->
-    <button
-      style="display:block;width:100%;max-width:360px;margin:0 auto 14px;padding:18px;background:#1a3a8f;color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:700;font-family:sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent;"
-      onclick="showPage('pg_login')">
-      🔐 Team Login
-    </button>
-
-    <button
-      style="display:block;width:100%;max-width:360px;margin:0 auto 14px;padding:18px;background:transparent;color:#fff;border:2px solid rgba(255,255,255,.35);border-radius:14px;font-size:16px;font-weight:700;font-family:sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent;"
-      onclick="showPage('pg_register')">
-      ✍️ Apply to Join Team
-    </button>
-
-    <button
-      style="display:block;width:100%;max-width:360px;margin:0 auto 14px;padding:18px;background:linear-gradient(135deg,#e8a020,#f5b944);color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:700;font-family:sans-serif;cursor:pointer;-webkit-tap-highlight-color:transparent;"
-      onclick="doInstall()">
-      📲 Install App on Your Phone
-    </button>
-
-    <div style="font-size:11px;color:rgba(255,255,255,.3);margin-top:16px;">rehovtu@gmail.com · 09037066499 · Since July 2022</div>
-  </div>
-</div>
-
-<!-- LOGIN PAGE -->
-<div id="pg_login" class="page" style="background:#0a1628;padding:0 0 40px;">
-  <div class="back" onclick="showPage('pg_landing')"><span>←</span><span>Back</span></div>
-  <div style="padding:0 20px;">
-    <div class="card">
-      <div style="font-size:20px;font-weight:800;color:#0a1628;margin-bottom:20px;">Sign In</div>
-      <div id="loginErr" class="err"></div>
-      <div class="field"><label>Email</label><input id="li_email" type="email" placeholder="your@email.com"></div>
-      <div class="field"><label>Password</label>
-        <div style="position:relative;">
-          <input id="li_pass" type="password" placeholder="••••••••" style="padding-right:44px;">
-          <button onclick="togglePw('li_pass',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;">👁</button>
+    <!-- LOGIN -->
+    <div id="authLogin">
+      <div id="loginErr" class="alert alert-error hidden"></div>
+      <div class="fg"><label class="fl">Email</label><input class="fi" id="li_email" type="email" placeholder="your@email.com"></div>
+      <div class="fg">
+        <label class="fl">Password</label>
+        <div class="pw-wrap">
+          <input class="fi" id="li_pass" type="password" placeholder="••••••••">
+          <button class="pw-eye" onclick="togglePw('li_pass',this)">👁</button>
         </div>
       </div>
-      <button onclick="doLogin()" style="width:100%;padding:14px;background:#1a3a8f;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;font-family:sans-serif;cursor:pointer;margin-bottom:12px;">Sign In</button>
-      <div style="text-align:center;font-size:13px;color:#64748b;">No account? <span style="color:#1a3a8f;cursor:pointer;font-weight:600;" onclick="showPage('pg_register')">Register</span> · <span style="color:#1a3a8f;cursor:pointer;font-weight:600;" onclick="showPage('pg_reset')">Reset Password</span></div>
+      <button class="btn btn-primary btn-full" onclick="doLogin()">Sign In</button>
     </div>
-  </div>
-</div>
 
-<!-- REGISTER PAGE -->
-<div id="pg_register" class="page" style="background:#0a1628;padding:0 0 40px;">
-  <div class="back" onclick="showPage('pg_landing')"><span>←</span><span>Back</span></div>
-  <div style="padding:0 20px;">
-    <div class="card">
-      <div style="font-size:20px;font-weight:800;color:#0a1628;margin-bottom:20px;">Create Account</div>
-      <div id="regErr" class="err"></div>
-      <div id="regOk" class="ok"></div>
-      <div class="field"><label>Full Name</label><input id="rg_name" placeholder="Your full name"></div>
-      <div class="field"><label>Email</label><input id="rg_email" type="email" placeholder="your@email.com"></div>
-      <div class="field"><label>Phone</label><input id="rg_phone" placeholder="08012345678"></div>
-      <div class="field"><label>State</label><input id="rg_state" placeholder="e.g. Lagos"></div>
-      <div class="field"><label>Your Role</label>
-        <select id="rg_role" onchange="loadUplines()">
+    <!-- REGISTER -->
+    <div id="authRegister" class="hidden">
+      <div id="regErr" class="alert alert-error hidden"></div>
+      <div id="regOk" class="alert alert-success hidden"></div>
+      <div class="fg"><label class="fl">Full Name</label><input class="fi" id="rg_name" placeholder="Your full name"></div>
+      <div class="fg"><label class="fl">Email</label><input class="fi" id="rg_email" type="email" placeholder="your@email.com"></div>
+      <div class="fg"><label class="fl">Phone</label><input class="fi" id="rg_phone" placeholder="08012345678"></div>
+      <div class="fg"><label class="fl">State</label><input class="fi" id="rg_state" placeholder="e.g. Lagos"></div>
+      <div class="fg"><label class="fl">Your Role</label>
+        <select class="fsl" id="rg_role" onchange="loadUplineOptions()">
           <option value="ambassador">Ambassador</option>
           <option value="cc">Campus Coordinator</option>
           <option value="pm">State Project Manager</option>
           <option value="pfc">Project & Finance Coordinator</option>
-        </select>
-      </div>
-      <div class="field"><label>Your Upline</label>
-        <select id="rg_upline"><option>Loading...</option></select>
-      </div>
-      <div style="background:#f8fafc;border-radius:10px;padding:14px;margin-bottom:13px;">
-        <div style="font-size:11px;font-weight:700;color:#0a1628;text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px;">🏦 Bank Details</div>
-        <div class="field"><label>Bank Name</label><input id="rg_bank" placeholder="GTBank, Access, Opay..."></div>
-        <div class="field"><label>Account Number</label><input id="rg_accnum" type="tel" maxlength="10" placeholder="0123456789"></div>
-        <div class="field" style="margin-bottom:0"><label>Account Name</label><input id="rg_accname" placeholder="Name on account"></div>
-      </div>
-      <div class="field"><label>Password</label>
-        <div style="position:relative;">
-          <input id="rg_pass" type="password" placeholder="Choose a password" style="padding-right:44px;">
-          <button onclick="togglePw('rg_pass',this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;">👁</button>
+        </select></div>
+      <div class="fg"><label class="fl">Your Upline</label>
+        <select class="fsl" id="rg_upline"><option value="">Loading…</option></select></div>
+      <div class="fg">
+        <label class="fl">Password</label>
+        <div class="pw-wrap">
+          <input class="fi" id="rg_pass" type="password" placeholder="Choose a password">
+          <button class="pw-eye" onclick="togglePw('rg_pass',this)">👁</button>
         </div>
       </div>
-      <button onclick="doRegister()" style="width:100%;padding:14px;background:#1a6b3c;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;font-family:sans-serif;cursor:pointer;">Create Account</button>
+      <button class="btn btn-success btn-full" onclick="doRegister()">Create Account</button>
+    </div>
+
+    <!-- RESET PASSWORD -->
+    <div id="authReset" class="hidden">
+      <div id="resetErr" class="alert alert-error hidden"></div>
+      <div id="resetOk" class="alert alert-success hidden"></div>
+      <div class="fg"><label class="fl">Your Email</label><input class="fi" id="rs_email" type="email" placeholder="your@email.com"></div>
+      <div class="fg"><label class="fl">Security Answer</label><input class="fi" id="rs_ans" placeholder="Your brand/business name"></div>
+      <div class="fg">
+        <label class="fl">New Password</label>
+        <div class="pw-wrap">
+          <input class="fi" id="rs_pass" type="password" placeholder="New password">
+          <button class="pw-eye" onclick="togglePw('rs_pass',this)">👁</button>
+        </div>
+      </div>
+      <div class="alert alert-info" style="margin-bottom:10px;font-size:12px">Security question: <strong>What is your brand/business name?</strong></div>
+      <button class="btn btn-gold btn-full" onclick="doReset()">Reset Password</button>
     </div>
   </div>
 </div>
-
-<!-- RESET PAGE -->
-<div id="pg_reset" class="page" style="background:#0a1628;padding:0 0 40px;">
-  <div class="back" onclick="showPage('pg_login')"><span>←</span><span>Back to Login</span></div>
-  <div style="padding:0 20px;">
-    <div class="card">
-      <div style="font-size:20px;font-weight:800;color:#0a1628;margin-bottom:8px;">Reset Password</div>
-      <div style="font-size:13px;color:#64748b;margin-bottom:18px;">Security question: <b>What is your brand/business name?</b></div>
-      <div id="resetErr" class="err"></div>
-      <div id="resetOk" class="ok"></div>
-      <div class="field"><label>Email</label><input id="rs_email" type="email" placeholder="your@email.com"></div>
-      <div class="field"><label>Answer</label><input id="rs_ans" placeholder="Your brand/business name"></div>
-      <div class="field"><label>New Password</label><input id="rs_pass" type="password" placeholder="New password"></div>
-      <button onclick="doReset()" style="width:100%;padding:14px;background:#e8a020;color:#fff;border:none;border-radius:10px;font-size:15px;font-weight:700;font-family:sans-serif;cursor:pointer;">Reset Password</button>
-    </div>
-  </div>
 </div>
 
-<!-- APP -->
-<div id="pg_app" class="page" style="background:#f0f4f9;">
-  <div id="appHdr" style="background:#0a1628;color:#fff;padding:0 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;height:56px;border-bottom:2px solid #e8a020;">
+<!-- ══════════════════ APP ══════════════════ -->
+<div id="appScreen" class="hidden">
+  <div class="hdr">
     <div>
-      <div style="font-size:15px;font-weight:800;">Reho<span style="color:#e8a020;">VTU</span></div>
-      <div id="hdrRole" style="font-size:10px;color:#f5b944;font-weight:600;text-transform:uppercase;letter-spacing:.8px;"></div>
+      <div class="hdr-title">Reho<span style="color:var(--gold)">VTU</span></div>
+      <div class="hdr-sub" id="hdrRole">—</div>
     </div>
-    <div style="text-align:right;">
-      <div id="hdrName" style="font-size:13px;font-weight:700;"></div>
-      <div id="hdrCode" style="font-size:10px;color:#f5b944;font-family:monospace;"></div>
-      <button onclick="doLogout()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.2);border-radius:6px;color:#fff;font-size:11px;padding:2px 8px;cursor:pointer;margin-top:2px;font-family:sans-serif;">Logout</button>
+    <div class="hdr-right">
+      <strong id="hdrName">—</strong>
+      <span id="hdrCode">—</span>
+      <div><button class="logout-btn" onclick="doLogout()">Logout</button></div>
     </div>
   </div>
-  <div id="appNav" style="background:#fff;border-bottom:2px solid #e2e8f0;display:flex;overflow-x:auto;position:sticky;top:56px;z-index:99;scrollbar-width:none;"></div>
-  <div id="appMain" style="padding:14px;max-width:640px;margin:0 auto;"></div>
+  <div class="nav" id="navBar"></div>
+  <div class="main" id="mainContent"></div>
+</div>
+
+<!-- SHEET -->
+<div id="overlay" class="overlay hidden" onclick="closeSheetOutside(event)">
+  <div class="sheet" id="sheetContent"></div>
 </div>
 
 <script>
-// ═══ PAGE NAVIGATION ═══
-function showPage(id) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  const t = document.getElementById(id);
-  if (t) { t.classList.add('active'); window.scrollTo(0,0); }
-  if (id === 'pg_register') setTimeout(loadUplines, 150);
-}
-
-function togglePw(id, btn) {
-  const el = document.getElementById(id);
-  el.type = el.type === 'password' ? 'text' : 'password';
-  btn.textContent = el.type === 'password' ? '👁' : '🙈';
-}
-
-// ═══ PWA ═══
-let _dp = null;
-window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); _dp = e; });
-function doInstall() {
-  if (_dp) { _dp.prompt(); _dp.userChoice.then(() => _dp = null); }
-  else {
-    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent);
-    alert(ios
-      ? 'iPhone: Tap Share (□↑) → Add to Home Screen → Add'
-      : 'Android: Tap menu (⋮) → Install App / Add to Home Screen');
-  }
-}
-
-
 // ═══════════════════════════════════════════════════════════
 // FIREBASE FIRESTORE REST
 // ═══════════════════════════════════════════════════════════
@@ -1494,163 +1545,6 @@ async function migrateFromOldApp(){
     const user=members.find(m=>m.id===id);
     if(user){currentUser=user;showApp();return;}
   }
-})();
-
-
-// ═══ AUTH ═══
-let currentUser = null;
-
-async function doLogin() {
-  const email = document.getElementById('li_email').value.trim().toLowerCase();
-  const pass = document.getElementById('li_pass').value;
-  const err = document.getElementById('loginErr');
-  err.style.display = 'none';
-  const members = await getMembers();
-  const user = members.find(m => m.email.toLowerCase() === email && m.password === pass);
-  if (!user) { err.textContent = 'Invalid email or password.'; err.style.display = 'block'; return; }
-  currentUser = user; LS.set('session', user.id); showApp();
-}
-
-async function doRegister() {
-  const g = id => document.getElementById(id).value;
-  const name=g('rg_name').trim(), email=g('rg_email').trim().toLowerCase();
-  const phone=g('rg_phone').trim(), state=g('rg_state').trim();
-  const role=g('rg_role'), uplineCode=g('rg_upline');
-  const bank=g('rg_bank').trim(), accNum=g('rg_accnum').trim(), accName=g('rg_accname').trim();
-  const pass=g('rg_pass');
-  const err=document.getElementById('regErr'), ok=document.getElementById('regOk');
-  err.style.display='none'; ok.style.display='none';
-  if(!name||!email||!pass||!uplineCode){err.textContent='Please fill all required fields.';err.style.display='block';return;}
-  const members = await getMembers();
-  if(members.find(m=>m.email.toLowerCase()===email)){err.textContent='Email already registered.';err.style.display='block';return;}
-  const pre={pfc:'PF',pm:'PM',cc:'CC',ambassador:'AM'};
-  const code=(pre[role]||'AM')+String(members.filter(m=>m.role===role).length+1).padStart(3,'0');
-  members.push({id:'M_'+Date.now(),name,email,phone,state,password:pass,role,code,uplineCode,
-    bank,accNum,accName,joinDate:today(),securityA:name.split(' ')[0].toLowerCase(),balance:0});
-  await saveMembers(members);
-  ok.textContent='✅ Account created! Your code is '+code+'. You can now sign in.';
-  ok.style.display='block';
-}
-
-async function doReset() {
-  const g=id=>document.getElementById(id).value;
-  const email=g('rs_email').trim().toLowerCase(), ans=g('rs_ans').trim().toLowerCase(), pass=g('rs_pass');
-  const err=document.getElementById('resetErr'), ok=document.getElementById('resetOk');
-  err.style.display='none'; ok.style.display='none';
-  if(!email||!ans||!pass){err.textContent='All fields required.';err.style.display='block';return;}
-  const members=await getMembers();
-  const idx=members.findIndex(m=>m.email.toLowerCase()===email);
-  if(idx<0){err.textContent='Email not found.';err.style.display='block';return;}
-  if(ans!==(members[idx].securityA||'rehovtu').toLowerCase()&&ans!=='rehovtu'){
-    err.textContent='Security answer incorrect.';err.style.display='block';return;}
-  members[idx].password=pass; await saveMembers(members);
-  ok.textContent='✅ Password reset! You can now sign in.'; ok.style.display='block';
-}
-
-function doLogout() {
-  currentUser=null; LS.set('session',null); showPage('pg_landing');
-}
-
-async function loadUplines() {
-  const role = document.getElementById('rg_role').value;
-  const uplineRole = {ambassador:'cc',cc:'pm',pm:'pfc',pfc:'founder'}[role]||'founder';
-  const sel = document.getElementById('rg_upline');
-  sel.innerHTML = '<option>Loading...</option>';
-  try {
-    const members = await Promise.race([getMembers(), new Promise((_,r)=>setTimeout(()=>r('timeout'),6000))]);
-    const opts = members.filter(m=>m.role===uplineRole||(uplineRole==='founder'&&m.role==='founder'));
-    if(!opts.length){sel.innerHTML='<option value="">No uplines found</option>';return;}
-    sel.innerHTML=opts.map(m=>`<option value="${m.code}">${m.name} (${m.code})</option>`).join('');
-  } catch(e) {
-    const cached=LS.get('members')||[];
-    const uplineRole2={ambassador:'cc',cc:'pm',pm:'pfc',pfc:'founder'}[role]||'founder';
-    const opts=cached.filter(m=>m.role===uplineRole2||(uplineRole2==='founder'&&m.role==='founder'));
-    sel.innerHTML=opts.length?opts.map(m=>`<option value="${m.code}">${m.name} (${m.code})</option>`).join(''):'<option value="">No uplines found</option>';
-  }
-}
-
-// ═══ APP SHELL ═══
-const ROLES={founder:'Founder',pfc:'Project & Finance Coordinator',pm:'State Project Manager',cc:'Campus Coordinator',ambassador:'Ambassador'};
-const ROLE_SHORT={founder:'FD',pfc:'PF',pm:'PM',cc:'CC',ambassador:'AM'};
-const COMM_RATES={ambassador:600,cc:200,pm:100,pfc:50};
-const TARGETS={ambassador:100,cc:2500,pm:20000,pfc:100000};
-
-async function showApp() {
-  const members=await getMembers();
-  currentUser=members.find(m=>m.id===currentUser.id)||currentUser;
-  document.getElementById('hdrName').textContent=currentUser.name.split(' ').slice(0,2).join(' ');
-  document.getElementById('hdrCode').textContent=currentUser.code;
-  document.getElementById('hdrRole').textContent=ROLES[currentUser.role]||'';
-  showPage('pg_app');
-  buildNav();
-  renderTab('dashboard');
-}
-
-function getTabs(){
-  if(currentUser.role==='founder') return [
-    {id:'dashboard',label:'📊 Dashboard'},{id:'members',label:'👥 Members'},
-    {id:'payments',label:'💰 Payments'},{id:'signups',label:'📋 Sign-ups'},
-    {id:'commissions',label:'🏆 Commissions'},{id:'model',label:'📐 Model'},
-    {id:'reports',label:'📑 Reports'},{id:'logs',label:'📝 Logs'},
-    {id:'excel',label:'📊 Excel'},
-  ];
-  return [
-    {id:'dashboard',label:'📊 My Stats'},{id:'myteam',label:'👥 My Team'},
-    {id:'signups',label:'📋 Sign-ups'},{id:'earnings',label:'💸 Earnings'},
-    {id:'reports',label:'📑 Reports'},{id:'logs',label:'📝 Log'},
-    {id:'excel',label:'📊 Excel'},{id:'account',label:'⚙️ Account'},
-  ];
-}
-
-let currentTab='dashboard';
-function buildNav(){
-  const tabs=getTabs();
-  document.getElementById('appNav').innerHTML=tabs.map(t=>
-    `<button onclick="renderTab('${t.id}')" style="flex:none;padding:10px 13px;font-size:11px;font-weight:700;color:${t.id===currentTab?'#1a3a8f':'#64748b'};border:none;border-bottom:3px solid ${t.id===currentTab?'#e8a020':'transparent'};background:#fff;cursor:pointer;white-space:nowrap;font-family:sans-serif;text-transform:uppercase;letter-spacing:.2px;">${t.label}</button>`
-  ).join('');
-}
-
-async function renderTab(tab) {
-  currentTab=tab; buildNav();
-  const main=document.getElementById('appMain');
-  main.innerHTML='<div style="text-align:center;padding:40px;color:#94a3b8;">⏳ Loading...</div>';
-  try {
-    if(currentUser.role==='founder'){
-      if(tab==='dashboard') main.innerHTML=await renderFounderDash();
-      else if(tab==='members') main.innerHTML=await renderMembers();
-      else if(tab==='payments') main.innerHTML=await renderPayments();
-      else if(tab==='signups') main.innerHTML=await renderSignupsTab();
-      else if(tab==='commissions') main.innerHTML=await renderCommissions();
-      else if(tab==='model') main.innerHTML=renderModel();
-      else if(tab==='reports') main.innerHTML=await renderReports();
-      else if(tab==='logs') main.innerHTML=await renderLogs();
-      else if(tab==='excel') main.innerHTML=renderExcelTab();
-    } else {
-      if(tab==='dashboard') main.innerHTML=await renderMemberDash();
-      else if(tab==='myteam') main.innerHTML=await renderMyTeam();
-      else if(tab==='signups') main.innerHTML=await renderSignupsTab();
-      else if(tab==='earnings') main.innerHTML=await renderMemberEarnings();
-      else if(tab==='reports') main.innerHTML=await renderReports();
-      else if(tab==='logs') main.innerHTML=await renderLogs();
-      else if(tab==='excel') main.innerHTML=renderExcelTab();
-      else if(tab==='account') main.innerHTML=await renderAccount();
-    }
-  } catch(e) { main.innerHTML='<div style="padding:20px;color:red;">Error: '+e.message+'</div>'; }
-}
-
-// ═══ BOOT ═══
-if('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
-(async()=>{
-  await initData();
-  await syncFromFirebase();
-  await migrateFromOldApp();
-  const id=LS.get('session');
-  if(id){
-    const members=await getMembers();
-    const user=members.find(m=>m.id===id);
-    if(user){currentUser=user;showApp();return;}
-  }
-  showPage('pg_landing');
 })();
 </script>
 </body>
