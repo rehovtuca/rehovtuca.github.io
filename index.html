@@ -132,6 +132,75 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
 .tree-node{background:#fff;border-radius:10px;padding:11px 13px;margin-bottom:5px;border:1px solid var(--border);box-shadow:var(--shadow);}
 /* BADGE COUNT */
 .bdg{display:inline-block;background:var(--red);color:#fff;font-size:9px;font-weight:700;border-radius:9px;padding:1px 5px;margin-left:3px;vertical-align:middle;}
+
+/* ── SHARP UI OVERRIDES ── */
+:root{
+  --navy:#0d1b2a;--navy2:#1a2942;--blue:#1e3a5f;--blue2:#2952c4;
+  --gold:#e8a020;--gold2:#f5b944;--green:#1a6b3c;--green-light:#d4f0e0;
+  --red:#b91c1c;--red-light:#fee2e2;--gray:#64748b;--border:#e2e8f0;
+  --bg:#f0f4f8;--white:#fff;--text:#0f172a;--muted:#94a3b8;
+}
+
+/* Header - sharp dark */
+.hdr{background:linear-gradient(135deg,#0d1b2a 0%,#1a2942 100%);color:#fff;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 12px rgba(0,0,0,.3);min-height:72px;}
+.hdr-ava{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;flex-shrink:0;border:2px solid rgba(255,255,255,.3);}
+.hdr-info{flex:1;padding:0 10px;}
+.hdr-role-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--gold2);margin-bottom:2px;}
+.hdr-name{font-size:14px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;}
+.hdr-badges{display:flex;align-items:center;gap:6px;margin-top:4px;flex-wrap:wrap;}
+.hdr-code-badge{background:rgba(255,255,255,.15);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:5px;font-family:monospace;}
+.hdr-state{color:rgba(255,255,255,.6);font-size:11px;}
+.hdr-verified{background:#1a6b3c;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;}
+.hdr-unverified{background:#e8a020;color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:5px;}
+.hdr-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.hdr-bell{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;position:relative;padding:4px;}
+.hdr-logout-btn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);border-radius:8px;color:#fff;font-size:12px;font-weight:700;padding:6px 12px;cursor:pointer;font-family:inherit;}
+
+/* Date/countdown card */
+.date-card{background:linear-gradient(135deg,#0d1b2a,#1e3a5f);border-radius:12px;padding:14px 16px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;}
+.date-label{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,.5);margin-bottom:3px;}
+.date-value{font-size:15px;font-weight:800;color:#fff;}
+.countdown-value{font-size:16px;font-weight:800;color:var(--gold);}
+
+/* Stat cards - clean white with colored numbers */
+.stats4{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+.stat4{background:#fff;border-radius:12px;padding:14px;border:1px solid var(--border);text-align:center;}
+.stat4-num{font-size:26px;font-weight:800;margin-bottom:4px;}
+.stat4-lbl{font-size:11px;color:var(--muted);font-weight:500;}
+.stat4.blue .stat4-num{color:#1e3a5f;}
+.stat4.green .stat4-num{color:var(--green);}
+.stat4.orange .stat4-num{color:#c05621;}
+.stat4.purple .stat4-num{color:#4A148C;}
+
+/* Earnings card */
+.earn-card{background:#fff;border-radius:12px;padding:14px 16px;margin-bottom:10px;border:1px solid var(--border);}
+.earn-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;}
+.earn-row:last-child{border-bottom:none;}
+.earn-row.total{font-weight:800;font-size:14px;}
+.earn-target{background:linear-gradient(135deg,#0d1b2a,#1e3a5f);border-radius:10px;padding:12px 14px;margin-top:10px;}
+
+/* Referral card */
+.ref-card{background:#1a2942;border-radius:12px;padding:14px 16px;margin-bottom:10px;color:#fff;}
+.ref-link-box{background:rgba(255,255,255,.08);border-radius:8px;padding:9px 12px;font-size:12px;font-family:monospace;word-break:break-all;margin:10px 0;}
+.ref-btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.ref-btn-copy{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);color:#fff;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
+.ref-btn-share{background:var(--gold);border:none;color:#fff;border-radius:8px;padding:10px;font-size:13px;font-weight:700;cursor:pointer;font-family:inherit;}
+
+/* Deadline card */
+.deadline-card{background:#fff;border-radius:12px;padding:14px 16px;margin-bottom:10px;border:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;}
+.deadline-label{font-size:9px;font-weight:700;color:var(--red);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;}
+.deadline-timer{font-size:22px;font-weight:800;color:#1e3a5f;}
+.deadline-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+
+/* Role card */
+.role-card{background:linear-gradient(135deg,#1e3a5f,#2952c4);border-radius:12px;padding:14px 16px;margin-bottom:10px;color:#fff;display:flex;justify-content:space-between;align-items:center;}
+.role-read-btn{background:rgba(255,255,255,.9);color:#1e3a5f;border:none;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:800;cursor:pointer;font-family:inherit;}
+
+/* Payment account - big gold number */
+.acct-banner{background:linear-gradient(135deg,#0d1b2a,#1e3a5f);border-radius:12px;padding:14px 16px;margin-bottom:10px;color:#fff;border:1px solid rgba(232,160,32,.3);}
+.acct-bank{font-size:9px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--gold2);margin-bottom:6px;}
+.acct-num{font-size:26px;font-weight:800;color:var(--gold);font-family:monospace;margin-bottom:4px;}
+.acct-name{font-size:13px;font-weight:700;color:#fff;}
 </style>
 </head>
 <body>
@@ -212,14 +281,19 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
 <!-- ══════════════════ APP ══════════════════ -->
 <div id="appScreen" class="hidden">
   <div class="hdr">
-    <div>
-      <div class="hdr-title">Reho<span style="color:var(--gold)">VTU</span></div>
-      <div class="hdr-sub" id="hdrRole">—</div>
+    <div class="hdr-ava" id="hdrAva">—</div>
+    <div class="hdr-info">
+      <div class="hdr-role-label" id="hdrRole">—</div>
+      <div class="hdr-name" id="hdrName">—</div>
+      <div class="hdr-badges">
+        <span class="hdr-code-badge" id="hdrCode">—</span>
+        <span class="hdr-state" id="hdrState">—</span>
+        <span id="hdrVerified"></span>
+      </div>
     </div>
-    <div class="hdr-right">
-      <strong id="hdrName">—</strong>
-      <span id="hdrCode">—</span>
-      <div><button class="logout-btn" onclick="doLogout()">Logout</button></div>
+    <div class="hdr-actions">
+      <button class="hdr-bell" onclick="showNotifs()">🔔</button>
+      <button class="hdr-logout-btn" onclick="doLogout()">Logout</button>
     </div>
   </div>
   <div class="nav" id="navBar"></div>
@@ -491,7 +565,7 @@ function getTabs(){
     {id:'hierarchy',label:'🌳 Tree'},
     {id:'payments',label:'💰 Payments'},
     {id:'signups',label:'📋 Sign-ups'},
-    {id:'commissions',label:'🏆 Commissions'},
+    {id:'commissions',label:'🏆 Commissions'},{id:'fines',label:'⚠️ Fines'},
     {id:'reports',label:'📑 Reports'},
     {id:'logs',label:'📝 Logs'},
     {id:'excel',label:'📊 Excel'},
@@ -516,8 +590,19 @@ async function showApp(){
   el('hdrName').textContent=currentUser.name.split(' ').slice(0,2).join(' ');
   el('hdrCode').textContent=currentUser.code;
   el('hdrRole').textContent=ROLES[currentUser.role];
+  // New sharp header fields
+  const avaEl=el('hdrAva');
+  if(avaEl){avaEl.textContent=initials(currentUser.name);avaEl.style.background=avaColor(currentUser.role);}
+  const stEl=el('hdrState');
+  if(stEl)stEl.textContent=currentUser.state||'';
+  const vEl=el('hdrVerified');
+  if(vEl)vEl.innerHTML=currentUser.verified
+    ?'<span class="hdr-verified">✓ VERIFIED</span>'
+    :'<span class="hdr-unverified">⏳ UNVERIFIED</span>';
   buildNav();
   await renderTab(currentTab);
+  setTimeout(checkAndApplyFines,3000);
+  setInterval(checkAndApplyFines,300000);
 }
 
 function buildNav(){
@@ -1317,54 +1402,183 @@ async function importExcel(input){
 // MEMBER DASHBOARD
 // ═══════════════════════════════════════════════════════════
 async function renderMemberDash(){
-  const [members,signups,payments,reports]=await Promise.all([getMembers(),getSignups(),getPayments(),getReports()]);
+  const [members,signups,payments,reports,fines]=await Promise.all([getMembers(),getSignups(),getPayments(),getReports(),getFines()]);
   const m=currentUser;
+  const rs=ROLE_SUMMARIES[m.role]||{};
   const directSigs=signups.filter(s=>s.ambassadorCode===m.code).length;
   const teamSigs=totalTeamSignups(signups,members,m.code);
   const earned=memberCommEarned(signups,m);
   const paid=memberCommPaid(payments,m.code);
   const owed=Math.max(0,earned-paid);
-  const target=TARGETS[m.role]||0;
-  const pct=target>0?Math.min(100,Math.round(directSigs/target*100)):0;
+  const target=rs.target||100;
+  const pct=Math.min(100,Math.round(directSigs/target*100));
   const upline=getUpline(members,m);
+  const myFines=fines.filter(f=>f.memberCode===m.code);
+  const totalFines=myFines.reduce((s,f)=>s+f.amount,0);
+  const todayFined=myFines.find(f=>f.date===today());
+  const refLink=location.origin+location.pathname+'?ref='+m.code;
+  const downlines=getDownlines(members,m);
   const recentReports=reports.filter(r=>r.memberCode===m.code).slice(0,2);
-  const refLink=`${location.origin}${location.pathname}?ref=${m.code}`;
+
+  // Role-specific stat cards
+  const roleStats={
+    ambassador:[
+      {num:directSigs,lbl:'My Sign-ups',cls:'blue'},
+      {num:pct+'%',lbl:'Of Target',cls:'green'},
+      {num:myFines.length,lbl:'Fines',cls:'orange'},
+      {num:recentReports.length,lbl:'Reports Filed',cls:'purple'},
+    ],
+    cc:[
+      {num:downlines.length,lbl:'My Ambassadors',cls:'blue'},
+      {num:teamSigs,lbl:'Team Sign-ups',cls:'green'},
+      {num:myFines.length,lbl:'Fines',cls:'orange'},
+      {num:pct+'%',lbl:'Of Target',cls:'purple'},
+    ],
+    pm:[
+      {num:downlines.length,lbl:'My CCs',cls:'blue'},
+      {num:teamSigs,lbl:'State Sign-ups',cls:'green'},
+      {num:myFines.length,lbl:'Fines',cls:'orange'},
+      {num:pct+'%',lbl:'Of Target',cls:'purple'},
+    ],
+    pfc:[
+      {num:downlines.length,lbl:'My PMs',cls:'blue'},
+      {num:teamSigs,lbl:'PFC Sign-ups',cls:'green'},
+      {num:myFines.length,lbl:'Fines',cls:'orange'},
+      {num:members.filter(x=>x.role==='cc').length,lbl:'Total CCs',cls:'purple'},
+    ],
+  };
+  const stats=roleStats[m.role]||roleStats.ambassador;
+
+  // Countdown to end of month
+  const now=new Date();
+  const endOfMonth=new Date(now.getFullYear(),now.getMonth()+1,0,23,59,59);
+  const diff=Math.max(0,endOfMonth-now);
+  const days=Math.floor(diff/86400000);
+  const hrs=Math.floor((diff%86400000)/3600000);
+  const mins=Math.floor((diff%3600000)/60000);
+  const secs=Math.floor((diff%60000)/1000);
+  const countdown=days+'d '+String(hrs).padStart(2,'0')+':'+String(mins).padStart(2,'0')+':'+String(secs).padStart(2,'0');
+
+  // Deadline countdown
+  const rule=FINE_RULES[m.role]||{deadline:21,label:'9:00 PM',fine:0};
+  const deadlineToday=new Date(now.getFullYear(),now.getMonth(),now.getDate(),rule.deadline,0,0);
+  const deadlineDiff=Math.max(0,deadlineToday-now);
+  const dHrs=Math.floor(deadlineDiff/3600000);
+  const dMins=Math.floor((deadlineDiff%3600000)/60000);
+  const dSecs=Math.floor((deadlineDiff%60000)/1000);
+  const deadlineStr=deadlineDiff>0
+    ? dHrs+'h '+String(dMins).padStart(2,'0')+'m '+String(dSecs).padStart(2,'0')+'s'
+    : '<span style="color:var(--red)">DEADLINE PASSED</span>';
+  const dateStr=now.toLocaleDateString('en-US',{weekday:'short',day:'numeric',month:'long',year:'numeric'});
+
   return`
+    <!-- Date + month countdown -->
+    <div class="date-card">
+      <div>
+        <div class="date-label">TODAY</div>
+        <div class="date-value">${dateStr}</div>
+      </div>
+      <div style="text-align:right">
+        <div class="date-label">MONTH ENDS IN</div>
+        <div class="countdown-value">${countdown}</div>
+      </div>
+    </div>
+
+    <!-- 4 role-specific stat cards -->
+    <div class="stats4">
+      ${stats.map(s=>`<div class="stat4 ${s.cls}">
+        <div class="stat4-num">${typeof s.num==='number'?s.num.toLocaleString():s.num}</div>
+        <div class="stat4-lbl">${s.lbl}</div>
+      </div>`).join('')}
+    </div>
+
+    <!-- Earnings card -->
+    <div class="earn-card">
+      <div style="font-size:11px;font-weight:700;color:var(--gold);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">💰 Earnings This Month</div>
+      <div class="earn-row">
+        <span style="color:var(--gray)">${directSigs.toLocaleString()} sign-ups × ₦${rs.rate||0}</span>
+        <span style="font-weight:700">${fmt(earned)}</span>
+      </div>
+      <div class="earn-row">
+        <span style="color:var(--gray)">Commission Paid</span>
+        <span class="pos">-${fmt(paid)}</span>
+      </div>
+      ${totalFines>0?`<div class="earn-row"><span style="color:var(--red)">Fines (${myFines.length})</span><span class="neg">-₦${totalFines.toLocaleString()}</span></div>`:''}
+      <div class="earn-row total">
+        <span>Net This Month</span>
+        <span class="${owed>0?'neg':'pos'}">${fmt(owed)}</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);text-align:right;margin-top:2px">${pct}% of target</div>
+      <div class="earn-target">
+        <div style="font-size:10px;font-weight:700;color:var(--gold2);margin-bottom:6px">🎯 MONTHLY TARGET</div>
+        <div style="font-size:12px;color:rgba(255,255,255,.8);line-height:1.6">${rs.expectation||''}</div>
+        <div style="font-size:13px;font-weight:800;color:var(--gold);margin-top:6px">${target.toLocaleString()} × ₦${rs.rate||0} = ₦${(rs.monthly||0).toLocaleString()}/month</div>
+      </div>
+    </div>
+
+    <!-- Payment account -->
     <div class="acct-banner">
-      <div class="acct-bank">${REHOVTU_ACCT.bank}</div>
+      <div class="acct-bank">PAYMENT ACCOUNT — ALL PAYMENTS GO HERE</div>
       <div class="acct-num">${REHOVTU_ACCT.number}</div>
       <div class="acct-name">${REHOVTU_ACCT.name}</div>
+      <div style="font-size:11px;opacity:.6;margin-top:2px">${REHOVTU_ACCT.bank}</div>
     </div>
-    <div class="card" style="background:var(--navy);color:#fff;padding:14px">
-      <div style="font-size:10px;opacity:.6;text-transform:uppercase;letter-spacing:1px">Your Account</div>
-      <div style="font-size:17px;font-weight:700;margin-top:3px">${m.name}</div>
-      <div style="margin-top:5px">${rb(m.role)}</div>
-      <div style="margin-top:6px;font-size:12px;opacity:.7">Upline: ${upline?upline.name:'Founder'}</div>
-      <div style="margin-top:8px;font-size:11px;background:rgba(255,255,255,.15);border-radius:6px;padding:5px 8px;cursor:pointer;word-break:break-all" onclick="copyRef('${refLink}')">
-        🔗 Your Referral Link (tap to copy)</div>
+
+    <!-- Your code + referral link -->
+    <div class="ref-card">
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,.5);">YOUR CODE</div>
+      <div style="font-size:28px;font-weight:900;color:#fff;font-family:monospace;margin:2px 0">${m.code}</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.6);margin-bottom:10px">${m.state||''}</div>
+      <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,.5);margin-bottom:4px;">YOUR REFERRAL LINK — SHARE TO RECRUIT</div>
+      <div class="ref-link-box">${refLink}</div>
+      <div style="font-size:11px;color:rgba(255,255,255,.6);margin-bottom:10px">
+        👥 Anyone who opens this will apply as <span style="color:var(--gold);font-weight:700">${ROLES[{founder:'pfc',pfc:'pm',pm:'cc',cc:'ambassador'}[m.role]||'ambassador']||'Ambassador'}</span> under you
+      </div>
+      <div class="ref-btns">
+        <button class="ref-btn-copy" onclick="copyRef('${refLink}')">📋 Copy Link</button>
+        <button class="ref-btn-share" onclick="shareRef('${refLink}','${m.name}')">🚀 Share</button>
+      </div>
     </div>
-    <div class="stats-row">
-      <div class="stat"><div class="stat-label">My Sign-ups</div><div class="stat-value">${directSigs}</div>
-        <div class="stat-sub">Target: ${target.toLocaleString()}</div>
-        <div class="prog-wrap"><div class="prog-bar" style="width:${pct}%"></div></div></div>
-      <div class="stat"><div class="stat-label">Commission Owed</div>
-        <div class="stat-value ${owed>0?'neg':'pos'}" style="font-size:16px">${fmt(owed)}</div>
-        <div class="stat-sub">Earned: ${fmt(earned)}</div></div>
+
+    <!-- Report deadline countdown -->
+    ${todayFined?`<div style="background:var(--red-light);border:1px solid var(--red);border-radius:12px;padding:12px 14px;margin-bottom:10px;display:flex;gap:10px;align-items:center">
+      <span style="font-size:22px">⚠️</span>
+      <div><div style="font-size:13px;font-weight:700;color:var(--red)">Fine Applied Today</div>
+      <div style="font-size:12px;color:#991b1b;margin-top:1px">${todayFined.reason} · ₦${todayFined.amount.toLocaleString()}</div></div>
+    </div>`:''}
+    <div class="deadline-card">
+      <div>
+        <div class="deadline-label">🗓️ TODAY'S REPORT DEADLINE</div>
+        <div class="deadline-timer">${deadlineStr}</div>
+        <div class="deadline-sub">Deadline: ${rule.label} · Miss = -₦${(rule.fine||0).toLocaleString()}</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="openSubmitReport()">Submit</button>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px">
-      <button class="btn btn-success btn-full" onclick="openAddSignup()">+ Sign-up</button>
-      <button class="btn btn-primary btn-full" onclick="openSubmitReport()">📑 Report</button>
-      <button class="btn btn-outline btn-full" onclick="openAddLog()">📝 Log Activity</button>
-      <button class="btn btn-gray btn-full" onclick="renderTab('excel')">📊 Excel</button>
+
+    <!-- Your role card -->
+    <div class="role-card">
+      <div>
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;opacity:.7;margin-bottom:4px">📖 Your Role</div>
+        <div style="font-size:15px;font-weight:800">${ROLES[m.role]||''}</div>
+        <div style="font-size:11px;opacity:.7;margin-top:3px">${rs.tagline||''}</div>
+      </div>
+      <button class="role-read-btn" onclick="renderTab('earnings')">Read</button>
     </div>
-    ${recentReports.length>0?`
-      <div class="sec-title" style="font-size:14px">Recent Reports</div>
+
+    ${recentReports.length>0?`<div class="sec-title" style="font-size:12px">Recent Reports</div>
       ${recentReports.map(r=>`<div class="card" style="font-size:13px">
-        <div style="display:flex;justify-content:space-between"><b>${r.type} report</b><span style="color:var(--muted);font-size:11px">${r.date}</span></div>
-        <div style="margin-top:4px;color:var(--gray)">${r.signups||0} sign-ups · ${r.calls||0} calls · ${fmt(r.revenue||0)}</div>
+        <div style="display:flex;justify-content:space-between"><b>${r.type}</b><span style="color:var(--muted);font-size:11px">${r.date}</span></div>
+        <div style="color:var(--gray);margin-top:3px">${r.signups||0} sign-ups · ${r.calls||0} calls</div>
         ${r.reply?`<div style="font-size:12px;background:var(--green-light);color:var(--green);margin-top:6px;padding:6px 8px;border-radius:6px"><b>Founder:</b> ${r.reply}</div>`:''}
       </div>`).join('')}`:''}`;
 }
+
+// Share referral
+function shareRef(link, name){
+  if(navigator.share){navigator.share({title:'Join RehoVTU',text:'Join the RehoVTU team under '+name,url:link});}
+  else{copyRef(link);}
+}
+function showNotifs(){alert('Notifications coming soon!');}
 
 // ═══════════════════════════════════════════════════════════
 // MY TEAM (non-founder)
@@ -1528,6 +1742,99 @@ async function migrateFromOldApp(){
     console.warn('Migration skipped:',e);
     LS.set('rv2_migrated','1');
   }
+}
+
+const ROLE_SUMMARIES={
+  ambassador:{title:'Ambassador',icon:'🟢',tagline:'You are the front line — every sign-up starts with you',target:100,rate:600,monthly:60000,deadline:'7:00 PM',fine:500,team:'You have no downline. You report to your Campus Coordinator.',expectation:'Sign up 100 customers/month who pay ₦2,000 each. You earn ₦600 per sign-up = ₦60,000/month.',color:'#1a6b3c',bg:'#d4f0e0'},
+  cc:{title:'Campus Coordinator',icon:'🟠',tagline:'You lead 25 Ambassadors and drive your zone numbers',target:2500,rate:200,monthly:500000,deadline:'8:00 PM',fine:1000,team:'You manage 25 Ambassadors. You report to your State PM.',expectation:'Your 25 Ambassadors must hit 2,500 sign-ups/month. You earn ₦200 per sign-up from your team = ₦500,000/month.',color:'#c05621',bg:'#fbe9e7'},
+  pm:{title:'State Project Manager',icon:'🟣',tagline:'You run your state — 8 CCs, 200 Ambassadors, 20,000 sign-ups',target:20000,rate:100,monthly:2000000,deadline:'9:00 PM',fine:2000,team:'You manage 8 CCs and 200 Ambassadors. You report to your PFC.',expectation:'Your state must hit 20,000 sign-ups/month. You earn ₦100 per sign-up from your entire state = ₦2,000,000/month.',color:'#4A148C',bg:'#f3e5f5'},
+  pfc:{title:'Project & Finance Coordinator',icon:'🔵',tagline:'You lead the full network — 5 PMs, 40 CCs, 1,000 Ambassadors',target:100000,rate:50,monthly:5000000,deadline:'10:00 PM',fine:3000,team:'You manage 5 PMs, 40 CCs, 1,000 Ambassadors. You report to the Founder.',expectation:'Your network must hit 100,000 sign-ups/month. You earn ₦50 per sign-up across your entire network = ₦5,000,000/month.',color:'#1A1A2E',bg:'#e8eaf6'},
+};
+
+const FINE_RULES={
+  ambassador:{deadline:19,fine:500,label:'7:00 PM'},
+  cc:{deadline:20,fine:1000,label:'8:00 PM'},
+  pm:{deadline:21,fine:2000,label:'9:00 PM'},
+  pfc:{deadline:22,fine:3000,label:'10:00 PM'},
+};
+
+async function getFines(){try{const f=await FB.get('fines');if(f){LS.set('fines',f);return f;}}catch{}return LS.get('fines')||[];}
+async function saveFines(f){LS.set('fines',f);await FB.set('fines',f);}
+
+async function checkAndApplyFines(){
+  const now=new Date();const hour=now.getHours();
+  const todayStr=now.toISOString().split('T')[0];
+  const [members,reports,fines]=await Promise.all([getMembers(),getReports(),getFines()]);
+  let changed=false;
+  for(const m of members){
+    if(m.role==='founder')continue;
+    const rule=FINE_RULES[m.role];
+    if(!rule||hour<rule.deadline)continue;
+    if(fines.find(f=>f.memberCode===m.code&&f.date===todayStr))continue;
+    if(reports.find(r=>r.memberCode===m.code&&r.date===todayStr&&r.type==='daily'))continue;
+    fines.push({id:'F_'+Date.now()+Math.random(),memberCode:m.code,date:todayStr,amount:rule.fine,reason:'Missed daily report (deadline: '+rule.label+')',auto:true});
+    changed=true;
+    sendEmail(m.email,m.name,'⚠️ RehoVTU Fine — Missed Report','<p>Hi '+m.name+',</p><p>A penalty of <b>₦'+rule.fine.toLocaleString()+'</b> has been recorded for missing your '+rule.label+' report deadline.</p><p>RehoVTU Team</p>');
+  }
+  if(changed)await saveFines(fines);
+}
+
+async function renderFinesTab(){
+  const [members,fines]=await Promise.all([getMembers(),getFines()]);
+  const sorted=[...fines].sort((a,b)=>b.date.localeCompare(a.date));
+  const total=fines.reduce((s,f)=>s+f.amount,0);
+  return`
+    <div class="sec-title">Penalty Records
+      <button class="btn btn-danger btn-sm" onclick="openManualFine()">+ Fine</button>
+    </div>
+    <div class="stats-row">
+      <div class="stat red"><div class="stat-label">Total Fines</div><div class="stat-value">${fines.length}</div></div>
+      <div class="stat red"><div class="stat-label">Total Amount</div><div class="stat-value neg" style="font-size:15px">₦${total.toLocaleString()}</div></div>
+    </div>
+    <div class="alert alert-gold" style="margin-bottom:12px;font-size:12px">
+      ⏰ Auto-applied daily if report not submitted:<br>
+      Ambassador 7PM (₦500) · CC 8PM (₦1,000) · PM 9PM (₦2,000) · PFC 10PM (₦3,000)
+    </div>
+    ${sorted.length===0?'<div class="empty"><div style="font-size:28px">✅</div><div>No fines recorded</div></div>':''}
+    ${sorted.map(f=>{
+      const mem=members.find(x=>x.code===f.memberCode);
+      return`<div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div>
+            <div style="font-weight:700;font-size:13px">${mem?mem.name:f.memberCode}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:2px">${f.date} · ${f.reason}</div>
+            <span style="font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700;${f.auto?'background:#fee2e2;color:#b91c1c':'background:#e0f0ff;color:#1a3a8f'}">${f.auto?'AUTO':'MANUAL'}</span>
+          </div>
+          <div class="neg mono" style="font-size:15px">₦${f.amount.toLocaleString()}</div>
+        </div>
+      </div>`;}).join('')}`;
+}
+
+async function openManualFine(){
+  const members=(await getMembers()).filter(m=>m.role!=='founder');
+  openSheet(`<div class="sheet-title">Add Manual Fine<button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>
+    <div class="fg"><label class="fl">Member</label>
+      <select class="fsl" id="mf_m">${members.map(m=>`<option value="${m.code}">${m.name} (${m.code})</option>`).join('')}</select></div>
+    <div class="fr">
+      <div class="fg"><label class="fl">Amount (₦)</label><input class="fi" id="mf_a" type="number" placeholder="0"></div>
+      <div class="fg"><label class="fl">Date</label><input class="fi" id="mf_d" type="date" value="${today()}"></div>
+    </div>
+    <div class="fg"><label class="fl">Reason</label><input class="fi" id="mf_r" placeholder="Reason..."></div>
+    <button class="btn btn-danger btn-full" onclick="submitManualFine()">Apply Fine</button>`);
+}
+
+async function submitManualFine(){
+  const memberCode=document.getElementById('mf_m').value;
+  const amount=parseFloat(document.getElementById('mf_a').value)||0;
+  const date=document.getElementById('mf_d').value;
+  const reason=document.getElementById('mf_r').value.trim();
+  if(!amount||!reason){alert('Enter amount and reason.');return;}
+  const member=(await getMembers()).find(m=>m.code===memberCode);
+  const fines=await getFines();
+  fines.unshift({id:'F_'+Date.now(),memberCode,amount,date,reason,auto:false});
+  await saveFines(fines);
+  if(member) sendEmail(member.email,member.name,'⚠️ RehoVTU Penalty — Manual Fine','<p>Hi '+member.name+',</p><p>A manual penalty of <b>₦'+amount.toLocaleString()+'</b> has been recorded against your account.</p><p>Reason: '+reason+'</p><p>RehoVTU Team</p>');
+  closeSheet();renderTab('fines');
 }
 
 (async()=>{
