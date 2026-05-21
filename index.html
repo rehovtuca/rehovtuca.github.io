@@ -207,75 +207,229 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
 
 <!-- ══════════════════ LOGIN / REGISTER ══════════════════ -->
 <div id="loginScreen">
-<div class="login-wrap">
-  <div class="login-logo">Reho<span>VTU</span></div>
-  <div class="login-sub">Team Management System</div>
-  <div class="login-card">
-    <div class="login-tabs">
-      <button class="login-tab active" onclick="switchAuth('login')">Sign In</button>
-      <button class="login-tab" onclick="switchAuth('register')">Register</button>
-      <button class="login-tab" onclick="switchAuth('reset')">Reset</button>
-    </div>
 
-    <!-- LOGIN -->
-    <div id="authLogin">
-      <div id="loginErr" class="alert alert-error hidden"></div>
-      <div class="fg"><label class="fl">Email</label><input class="fi" id="li_email" type="email" placeholder="your@email.com"></div>
-      <div class="fg">
-        <label class="fl">Password</label>
-        <div class="pw-wrap">
-          <input class="fi" id="li_pass" type="password" placeholder="••••••••">
-          <button class="pw-eye" onclick="togglePw('li_pass',this)">👁</button>
+<!-- ══ LANDING PAGE ══ -->
+<div id="landingPage" style="background:#0d1b2a;min-height:100vh;">
+
+  <!-- HERO -->
+  <div style="background:linear-gradient(160deg,#0d1b2a 0%,#1a2942 60%,#0d1b2a 100%);padding:48px 20px 36px;text-align:center;position:relative;overflow:hidden;">
+    <div style="position:absolute;top:-40px;right:-40px;width:180px;height:180px;background:radial-gradient(circle,rgba(232,160,32,.12) 0%,transparent 70%);border-radius:50%;pointer-events:none;"></div>
+    <!-- Logo -->
+    <div style="display:flex;align-items:center;justify-content:center;gap:12px;margin-bottom:20px;">
+      <div style="width:56px;height:56px;background:#e8a020;border-radius:14px;border:4px solid #1a3a8f;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 20px rgba(232,160,32,.4);">
+        <span style="font-size:28px;font-weight:900;color:#1a3a8f;font-family:Georgia,serif;">R</span>
+      </div>
+      <div style="text-align:left;">
+        <div style="font-size:28px;font-weight:900;color:#fff;line-height:1;letter-spacing:.5px;">Reho<span style="color:#e8a020;">VTU</span></div>
+        <div style="font-size:10px;color:#f5b944;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-top:3px;">Team Portal</div>
+      </div>
+    </div>
+    <div style="font-size:20px;font-weight:800;color:#fff;line-height:1.35;margin-bottom:10px;">Own a VTU Business That<br>Works While You Sleep</div>
+    <div style="font-size:13px;color:rgba(255,255,255,.6);line-height:1.7;margin-bottom:24px;">One-time <b style="color:#e8a020;">₦2,000</b> · Live in 48hrs<br>Earn daily — zero physical presence</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:360px;margin:0 auto;">
+      <div style="background:rgba(255,255,255,.08);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:20px;font-weight:800;color:#e8a020;font-family:monospace;">₦2.1T</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.6);margin-top:3px;">Data spent yearly</div>
+      </div>
+      <div style="background:rgba(255,255,255,.08);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:20px;font-weight:800;color:#e8a020;font-family:monospace;">₦1.8T</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.6);margin-top:3px;">Airtime yearly</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CREATE YOUR SITE CTA -->
+  <div style="padding:16px 20px 0;">
+    <div style="background:linear-gradient(135deg,#1a6b3c,#22874c);border-radius:14px;padding:16px 18px;margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:rgba(255,255,255,.8);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">🌐 Get Your Own VTU Website</div>
+      <div style="font-size:15px;font-weight:800;color:#fff;margin-bottom:4px;">Create Your Site — ₦2,000 →</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.75);line-height:1.6;margin-bottom:12px;">One-time payment. Delivered in 48 hours.<br>Sell data, airtime & bills. Earn on autopilot.</div>
+      <div style="display:flex;gap:8px;margin-bottom:12px;">
+        <div style="background:rgba(255,255,255,.15);border-radius:8px;padding:8px 12px;text-align:center;flex:1;">
+          <div style="font-size:13px;font-weight:800;color:#fff;">₦2,000</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.7);">One-time</div>
+        </div>
+        <div style="background:rgba(255,255,255,.15);border-radius:8px;padding:8px 12px;text-align:center;flex:1;">
+          <div style="font-size:13px;font-weight:800;color:#fff;">48hrs</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.7);">Delivered</div>
+        </div>
+        <div style="background:rgba(255,255,255,.15);border-radius:8px;padding:8px 12px;text-align:center;flex:1;">
+          <div style="font-size:13px;font-weight:800;color:#fff;">Autopilot</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.7);">Earns daily</div>
         </div>
       </div>
-      <button class="btn btn-primary btn-full" onclick="doLogin()">Sign In</button>
+      <button onclick="showOrderForm()" style="width:100%;padding:14px;background:#fff;color:#1a6b3c;border:none;border-radius:10px;font-size:14px;font-weight:800;cursor:pointer;font-family:inherit;">Order Now — Fill the Form →</button>
     </div>
 
-    <!-- REGISTER -->
-    <div id="authRegister" class="hidden">
-      <div id="regErr" class="alert alert-error hidden"></div>
-      <div id="regOk" class="alert alert-success hidden"></div>
-      <div class="fg"><label class="fl">Full Name</label><input class="fi" id="rg_name" placeholder="Your full name"></div>
-      <div class="fg"><label class="fl">Email</label><input class="fi" id="rg_email" type="email" placeholder="your@email.com"></div>
-      <div class="fg"><label class="fl">Phone</label><input class="fi" id="rg_phone" placeholder="08012345678"></div>
-      <div class="fg"><label class="fl">State</label><input class="fi" id="rg_state" placeholder="e.g. Lagos"></div>
-      <div class="fg"><label class="fl">Your Role</label>
-        <select class="fsl" id="rg_role" onchange="loadUplineOptions()">
-          <option value="ambassador">Ambassador</option>
-          <option value="cc">Campus Coordinator</option>
-          <option value="pm">State Project Manager</option>
-          <option value="pfc">Project & Finance Coordinator</option>
-        </select></div>
-      <div class="fg"><label class="fl">Your Upline</label>
-        <select class="fsl" id="rg_upline"><option value="">Loading…</option></select></div>
-      <div class="fg">
-        <label class="fl">Password</label>
-        <div class="pw-wrap">
-          <input class="fi" id="rg_pass" type="password" placeholder="Choose a password">
-          <button class="pw-eye" onclick="togglePw('rg_pass',this)">👁</button>
+    <!-- THIS WORKS FOR EVERYONE -->
+    <div style="background:linear-gradient(135deg,#1a2942,#1e3a5f);border-radius:14px;padding:16px 18px;margin-bottom:12px;">
+      <div style="font-size:12px;font-weight:700;color:#f5b944;text-transform:uppercase;letter-spacing:1px;margin-bottom:12px;">✅ THIS WORKS FOR EVERYONE</div>
+      <div style="display:flex;flex-direction:column;gap:0;">
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);">
+          <span style="font-size:24px;flex-shrink:0;">🎓</span>
+          <div><div style="font-size:13px;font-weight:700;color:#fff;">Students</div><div style="font-size:12px;color:rgba(255,255,255,.6);">Sell to classmates, hostel contacts & course groups</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);">
+          <span style="font-size:24px;flex-shrink:0;">💼</span>
+          <div><div style="font-size:13px;font-weight:700;color:#fff;">Workers</div><div style="font-size:12px;color:rgba(255,255,255,.6);">Earn extra income after hours — no interruption to your job</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);">
+          <span style="font-size:24px;flex-shrink:0;">🏠</span>
+          <div><div style="font-size:13px;font-weight:700;color:#fff;">Stay-at-Home Parents</div><div style="font-size:12px;color:rgba(255,255,255,.6);">Build real income from home with just a phone</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:12px;padding:10px 0;">
+          <span style="font-size:24px;flex-shrink:0;">🛒</span>
+          <div><div style="font-size:13px;font-weight:700;color:#fff;">Traders & Business Owners</div><div style="font-size:12px;color:rgba(255,255,255,.6);">Add VTU as an extra revenue stream for existing customers</div></div>
         </div>
       </div>
-      <button class="btn btn-success btn-full" onclick="doRegister()">Create Account</button>
     </div>
 
-    <!-- RESET PASSWORD -->
-    <div id="authReset" class="hidden">
-      <div id="resetErr" class="alert alert-error hidden"></div>
-      <div id="resetOk" class="alert alert-success hidden"></div>
-      <div class="fg"><label class="fl">Your Email</label><input class="fi" id="rs_email" type="email" placeholder="your@email.com"></div>
-      <div class="fg"><label class="fl">Security Answer</label><input class="fi" id="rs_ans" placeholder="Your brand/business name"></div>
-      <div class="fg">
-        <label class="fl">New Password</label>
-        <div class="pw-wrap">
-          <input class="fi" id="rs_pass" type="password" placeholder="New password">
-          <button class="pw-eye" onclick="togglePw('rs_pass',this)">👁</button>
-        </div>
-      </div>
-      <div class="alert alert-info" style="margin-bottom:10px;font-size:12px">Security question: <strong>What is your brand/business name?</strong></div>
-      <button class="btn btn-gold btn-full" onclick="doReset()">Reset Password</button>
+    <!-- JOIN TEAM CTA -->
+    <div style="background:#1a2030;border:1px solid rgba(232,160,32,.25);border-radius:14px;padding:16px 18px;margin-bottom:16px;">
+      <div style="font-size:13px;font-weight:700;color:#f5b944;margin-bottom:8px;">💸 Want to Earn More? Join Our Team</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.8);line-height:1.7;margin-bottom:0;">Help others get their VTU sites. Earn <b style="color:#e8a020;">₦600</b> per sign-up.<br>Target <b style="color:#e8a020;">₦60,000/month</b> as an Ambassador.<br><span style="color:rgba(255,255,255,.5);">Open to students AND non-students.</span></div>
+    </div>
+
+    <!-- 3 BUTTONS -->
+    <div style="display:flex;flex-direction:column;gap:12px;padding-bottom:40px;">
+      <button onclick="showLoginCard('login')" style="width:100%;padding:17px;background:#1a3a8f;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;">Team Login →</button>
+      <button onclick="showLoginCard('register')" style="width:100%;padding:17px;background:rgba(255,255,255,.08);color:#fff;border:1.5px solid rgba(255,255,255,.25);border-radius:12px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;">Apply to Join Team →</button>
+      <button onclick="doInstall()" style="width:100%;padding:17px;background:linear-gradient(135deg,#e8a020,#f5b944);color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;">📲 Install App on Your Phone</button>
+      <div style="text-align:center;font-size:11px;color:rgba(255,255,255,.3);">rehovtu@gmail.com · 09037066499 · Since July 2022</div>
     </div>
   </div>
 </div>
+
+<!-- ══ LOGIN CARD (hidden until button tapped) ══ -->
+<div id="loginCard" style="display:none;background:#0d1b2a;min-height:100vh;padding-bottom:40px;">
+  <div onclick="showLanding()" style="display:flex;align-items:center;gap:8px;padding:16px 20px;cursor:pointer;">
+    <span style="color:#e8a020;font-size:20px;">←</span>
+    <span style="color:rgba(255,255,255,.7);font-size:14px;">Back</span>
+  </div>
+  <div style="padding:0 20px;">
+    <div class="login-card" style="max-width:400px;margin:0 auto;">
+      <div class="login-tabs">
+        <button class="login-tab active" onclick="switchAuth('login')">Sign In</button>
+        <button class="login-tab" onclick="switchAuth('register')">Register</button>
+        <button class="login-tab" onclick="switchAuth('reset')">Reset</button>
+      </div>
+
+      <!-- LOGIN -->
+      <div id="authLogin">
+        <div id="loginErr" class="alert alert-error hidden"></div>
+        <div class="fg"><label class="fl">Email</label><input class="fi" id="li_email" type="email" placeholder="your@email.com"></div>
+        <div class="fg">
+          <label class="fl">Password</label>
+          <div class="pw-wrap">
+            <input class="fi" id="li_pass" type="password" placeholder="••••••••">
+            <button class="pw-eye" onclick="togglePw('li_pass',this)">👁</button>
+          </div>
+        </div>
+        <button class="btn btn-primary btn-full" onclick="doLogin()">Sign In</button>
+      </div>
+
+      <!-- REGISTER -->
+      <div id="authRegister" class="hidden">
+        <div id="regErr" class="alert alert-error hidden"></div>
+        <div id="regOk" class="alert alert-success hidden"></div>
+        <div class="fg"><label class="fl">Full Name</label><input class="fi" id="rg_name" placeholder="Your full name"></div>
+        <div class="fg"><label class="fl">Email</label><input class="fi" id="rg_email" type="email" placeholder="your@email.com"></div>
+        <div class="fg"><label class="fl">Phone</label><input class="fi" id="rg_phone" placeholder="08012345678"></div>
+        <div class="fg"><label class="fl">State</label><input class="fi" id="rg_state" placeholder="e.g. Lagos"></div>
+        <div class="fg"><label class="fl">Your Role</label>
+          <select class="fsl" id="rg_role" onchange="loadUplineOptions()">
+            <option value="ambassador">Ambassador</option>
+            <option value="cc">Campus Coordinator</option>
+            <option value="pm">State Project Manager</option>
+            <option value="pfc">Project & Finance Coordinator</option>
+          </select>
+        </div>
+        <div class="fg"><label class="fl">Your Upline</label>
+          <select class="fsl" id="rg_upline"><option value="">Loading...</option></select>
+        </div>
+        <div style="background:#f8fafc;border-radius:10px;padding:12px;margin-bottom:11px;">
+          <div style="font-size:11px;font-weight:800;color:#0a1628;text-transform:uppercase;letter-spacing:.5px;margin-bottom:9px;">🏦 Bank Details</div>
+          <div class="fg"><label class="fl">Bank Name</label><input class="fi" id="rg_bank" placeholder="GTBank, Access, Opay..."></div>
+          <div class="fg"><label class="fl">Account Number</label><input class="fi" id="rg_accnum" type="tel" maxlength="10" placeholder="0123456789"></div>
+          <div class="fg" style="margin:0"><label class="fl">Account Name</label><input class="fi" id="rg_accname" placeholder="Name on account"></div>
+        </div>
+        <div class="fg">
+          <label class="fl">Password</label>
+          <div class="pw-wrap">
+            <input class="fi" id="rg_pass" type="password" placeholder="Choose a password">
+            <button class="pw-eye" onclick="togglePw('rg_pass',this)">👁</button>
+          </div>
+        </div>
+        <button class="btn btn-success btn-full" onclick="doRegister()">Create Account</button>
+      </div>
+
+      <!-- RESET -->
+      <div id="authReset" class="hidden">
+        <div id="resetErr" class="alert alert-error hidden"></div>
+        <div id="resetOk" class="alert alert-success hidden"></div>
+        <div class="fg"><label class="fl">Email</label><input class="fi" id="rs_email" type="email" placeholder="your@email.com"></div>
+        <div class="fg"><label class="fl">Security Answer</label><input class="fi" id="rs_ans" placeholder="Your brand/business name"></div>
+        <div class="fg">
+          <label class="fl">New Password</label>
+          <div class="pw-wrap">
+            <input class="fi" id="rs_pass" type="password" placeholder="New password">
+            <button class="pw-eye" onclick="togglePw('rs_pass',this)">👁</button>
+          </div>
+        </div>
+        <div class="alert alert-info" style="margin-bottom:10px;font-size:12px">Security question: <strong>What is your brand/business name?</strong></div>
+        <button class="btn btn-gold btn-full" onclick="doReset()">Reset Password</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ ORDER FORM ══ -->
+<div id="orderFormPage" style="display:none;background:#0d1b2a;min-height:100vh;padding-bottom:40px;">
+  <div onclick="showLanding()" style="display:flex;align-items:center;gap:8px;padding:16px 20px;cursor:pointer;">
+    <span style="color:#e8a020;font-size:20px;">←</span>
+    <span style="color:rgba(255,255,255,.7);font-size:14px;">Back</span>
+  </div>
+  <div style="padding:0 20px;">
+    <div style="text-align:center;margin-bottom:20px;">
+      <div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:4px;">Create Your VTU Site</div>
+      <div style="font-size:13px;color:rgba(255,255,255,.6);">Fill the form below · Pay ₦2,000 · Get your site in 48hrs</div>
+    </div>
+    <div class="card">
+      <div id="orderErr" class="alert alert-error hidden"></div>
+      <div id="orderOk" class="alert alert-success hidden"></div>
+      <div class="fg"><label class="fl">Full Name</label><input class="fi" id="or_name" placeholder="Your full name"></div>
+      <div class="fg"><label class="fl">Phone Number</label><input class="fi" id="or_phone" type="tel" placeholder="08012345678"></div>
+      <div class="fg"><label class="fl">Email Address</label><input class="fi" id="or_email" type="email" placeholder="your@email.com"></div>
+      <div class="fg"><label class="fl">State</label><input class="fi" id="or_state" placeholder="e.g. Lagos"></div>
+      <div class="fg"><label class="fl">Preferred Site Name</label><input class="fi" id="or_sitename" placeholder="e.g. John VTU, Kemi Data Hub"></div>
+      <div class="fg"><label class="fl">How Did You Hear About Us?</label>
+        <select class="fsl" id="or_source">
+          <option value="">Select...</option>
+          <option value="WhatsApp">WhatsApp</option>
+          <option value="Friend/Referral">Friend / Referral</option>
+          <option value="Instagram">Instagram</option>
+          <option value="Facebook">Facebook</option>
+          <option value="TikTok">TikTok</option>
+          <option value="Ambassador">An Ambassador came to me</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="fg"><label class="fl">Referred By (Ambassador code, if any)</label><input class="fi" id="or_ref" placeholder="e.g. AM001 (optional)"></div>
+      <div style="background:#f8fafc;border-radius:10px;padding:13px;margin-bottom:12px;">
+        <div style="font-size:11px;font-weight:800;color:#0a1628;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">💳 Payment</div>
+        <div style="font-size:13px;color:#334155;margin-bottom:8px;">Transfer <b>₦2,000</b> to:</div>
+        <div style="background:#0d1b2a;border-radius:8px;padding:10px 12px;">
+          <div style="font-size:9px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">Account Number</div>
+          <div style="font-size:20px;font-weight:800;color:#e8a020;font-family:monospace;">3004221210</div>
+          <div style="font-size:12px;color:#fff;margin-top:2px;">Reho VTU · Guaranty Trust Bank</div>
+        </div>
+      </div>
+      <div class="fg"><label class="fl">Payment Reference / Receipt</label><input class="fi" id="or_payref" placeholder="Transaction ID or screenshot description"></div>
+      <button onclick="submitOrder()" class="btn btn-success btn-full" style="padding:14px;font-size:15px;">Submit Order →</button>
+    </div>
+  </div>
+</div>
+
 </div>
 
 <!-- ══════════════════ APP ══════════════════ -->
@@ -469,6 +623,27 @@ function switchAuth(tab){
   if(tab==='register') loadUplineOptions();
 }
 
+function showLoginCard(tab){
+  el('landingPage').style.display='none';
+  el('loginCard').style.display='block';
+  el('orderFormPage').style.display='none';
+  switchAuth(tab);
+  window.scrollTo(0,0);
+  if(tab==='register') setTimeout(loadUplineOptions,150);
+}
+function showLanding(){
+  el('landingPage').style.display='block';
+  el('loginCard').style.display='none';
+  el('orderFormPage').style.display='none';
+  window.scrollTo(0,0);
+}
+function showOrderForm(){
+  el('landingPage').style.display='none';
+  el('loginCard').style.display='none';
+  el('orderFormPage').style.display='block';
+  window.scrollTo(0,0);
+}
+
 // Populate upline dropdown based on selected role
 async function loadUplineOptions(){
   const role=el('rg_role')?el('rg_role').value:'ambassador';
@@ -543,6 +718,7 @@ function doLogout(){
   currentUser=null;LS.set('session',null);
   el('appScreen').classList.add('hidden');
   el('loginScreen').classList.remove('hidden');
+  showLanding();
 }
 
 async function restoreSession(){
@@ -568,7 +744,7 @@ function getTabs(){
     {id:'commissions',label:'🏆 Commissions'},{id:'fines',label:'⚠️ Fines'},
     {id:'reports',label:'📑 Reports'},
     {id:'logs',label:'📝 Logs'},
-    {id:'excel',label:'📊 Excel'},
+    {id:'excel',label:'📊 Excel'},{id:'orders',label:'🛒 Orders'},
   ];
   return [
     {id:'dashboard',label:'📊 My Stats'},
@@ -625,6 +801,7 @@ async function renderTab(tab){
       case 'reports':     content.innerHTML=await renderReports();break;
       case 'logs':        content.innerHTML=await renderLogs();break;
       case 'excel':       content.innerHTML=renderExcelTab();break;
+      case 'orders':      content.innerHTML='<div class="empty">⏳</div>'; renderOrdersTab().then(h=>{const m=document.getElementById('appMain');if(m)m.innerHTML=h;});break;
     }
   } else {
     switch(tab){
@@ -1837,10 +2014,87 @@ async function submitManualFine(){
   closeSheet();renderTab('fines');
 }
 
+async function getOrders(){try{const o=await FB.get('orders');if(o){LS.set('orders',o);return o;}}catch{}return LS.get('orders')||[];}
+async function saveOrders(o){LS.set('orders',o);await FB.set('orders',o);}
+
+async function submitOrder(){
+  const g=id=>document.getElementById(id)?.value||'';
+  const name=g('or_name').trim(),phone=g('or_phone').trim(),email=g('or_email').trim();
+  const state=g('or_state').trim(),sitename=g('or_sitename').trim();
+  const source=g('or_source'),ref=g('or_ref').trim(),payref=g('or_payref').trim();
+  const err=el('orderErr'),ok=el('orderOk');
+  err.classList.add('hidden');ok.classList.add('hidden');
+  if(!name||!phone||!email||!sitename||!payref){
+    err.textContent='Please fill all required fields including payment reference.';
+    err.classList.remove('hidden');return;}
+  const orders=await getOrders();
+  orders.unshift({id:'O_'+Date.now(),name,phone,email,state,sitename,source,ref,payref,
+    date:today(),status:'Pending',time:new Date().toLocaleTimeString()});
+  await saveOrders(orders);
+  ok.textContent='✅ Order submitted! We will contact you within 48 hours. Payment reference: '+payref;
+  ok.classList.remove('hidden');
+  sendEmail('rehovtu@gmail.com','RehoVTU','🆕 New VTU Site Order — '+name,
+    '<p><b>Name:</b> '+name+'<br><b>Phone:</b> '+phone+'<br><b>Email:</b> '+email+'<br><b>State:</b> '+state+'<br><b>Site Name:</b> '+sitename+'<br><b>Source:</b> '+source+'<br><b>Referred By:</b> '+(ref||'Direct')+'<br><b>Payment Ref:</b> '+payref+'</p>');
+  sendEmail(email,name,'✅ Your RehoVTU Site Order Received!',
+    '<p>Hi '+name+',</p><p>We received your order for <b>'+sitename+'</b>. Your site will be ready within 48 hours.</p><p>Payment reference: <b>'+payref+'</b></p><p>We will contact you on <b>'+phone+'</b> once it is ready.</p><p>RehoVTU Team</p>');
+}
+
+async function exportOrders(){
+  const orders=await getOrders();
+  if(!orders.length){alert('No orders yet.');return;}
+  const rows=[['Date','Time','Name','Phone','Email','State','Site Name','Source','Referred By','Payment Ref','Status']];
+  orders.forEach(o=>rows.push([o.date,o.time||'',o.name,o.phone,o.email,o.state||'',o.sitename||'',o.source||'',o.ref||'',o.payref||'',o.status||'Pending']));
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:12},{wch:10},{wch:20},{wch:14},{wch:24},{wch:12},{wch:20},{wch:16},{wch:10},{wch:20},{wch:10}];
+  XLSX.utils.book_append_sheet(wb,ws,'Orders');
+  XLSX.writeFile(wb,'RehoVTU_Site_Orders_'+today()+'.xlsx');
+}
+
+async function renderOrdersTab(){
+  const orders=(await getOrders()).sort((a,b)=>b.date.localeCompare(a.date));
+  const pending=orders.filter(o=>o.status==='Pending').length;
+  return`
+    <div class="sec-title">VTU Site Orders
+      <button class="btn btn-success btn-sm" onclick="exportOrders()">📊 Export Excel</button>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><div class="stat-label">Total Orders</div><div class="stat-value">${orders.length}</div></div>
+      <div class="stat"><div class="stat-label">Pending</div><div class="stat-value" style="color:var(--gold)">${pending}</div></div>
+    </div>
+    ${orders.length===0?'<div class="empty"><div style="font-size:28px">📭</div><div>No orders yet</div></div>':''}
+    ${orders.map(o=>`<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+        <div><div style="font-weight:700;font-size:14px">${o.name}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:1px">${o.date} · ${o.time||''}</div></div>
+        <select onchange="updateOrderStatus('${o.id}',this.value)" style="font-size:11px;padding:3px 7px;border-radius:6px;border:1px solid var(--border);background:${o.status==='Done'?'var(--green-light)':o.status==='Building'?'#e0f0ff':'#fef3dc'}">
+          <option ${o.status==='Pending'?'selected':''}>Pending</option>
+          <option ${o.status==='Building'?'selected':''}>Building</option>
+          <option ${o.status==='Done'?'selected':''}>Done</option>
+        </select>
+      </div>
+      <div style="font-size:12px;display:grid;grid-template-columns:1fr 1fr;gap:4px;">
+        <div><span style="color:var(--muted)">Phone:</span> ${o.phone}</div>
+        <div><span style="color:var(--muted)">State:</span> ${o.state||'—'}</div>
+        <div><span style="color:var(--muted)">Site Name:</span> ${o.sitename||'—'}</div>
+        <div><span style="color:var(--muted)">Source:</span> ${o.source||'—'}</div>
+        <div style="grid-column:1/-1"><span style="color:var(--muted)">Pay Ref:</span> <b>${o.payref||'—'}</b></div>
+        ${o.ref?`<div><span style="color:var(--muted)">Ref By:</span> ${o.ref}</div>`:''}
+      </div>
+    </div>`).join('')}`;
+}
+
+async function updateOrderStatus(id,status){
+  const orders=await getOrders();
+  const idx=orders.findIndex(o=>o.id===id);
+  if(idx>=0){orders[idx].status=status;await saveOrders(orders);}
+}
+
 (async()=>{
   // Show login screen immediately so page is never blank
   el('loginScreen').classList.remove('hidden');
   el('appScreen').classList.add('hidden');
+  showLanding();
 
   await initData();
   await syncFromFirebase();
@@ -1856,3 +2110,4 @@ async function submitManualFine(){
 </script>
 </body>
 </html>
+      else if(tab==='orders')  main.innerHTML=await renderOrdersTab();
