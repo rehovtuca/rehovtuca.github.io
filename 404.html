@@ -604,8 +604,16 @@ function memberCommPaid(payments,code){return payments.filter(p=>p.memberCode===
 
 function nextCode(members,role){
   if(!PREFIXES[role])return role.toUpperCase();
-  const existing=members.filter(m=>m.role===role);
-  return PREFIXES[role]+String(existing.length+1).padStart(3,'0');
+  const prefix=PREFIXES[role];
+  const existingCodes=new Set(members.map(m=>m.code));
+  let n=members.filter(m=>m.role===role).length+1;
+  let code=prefix+String(n).padStart(3,'0');
+  // Keep incrementing until we find a code not already taken
+  while(existingCodes.has(code)){
+    n++;
+    code=prefix+String(n).padStart(3,'0');
+  }
+  return code;
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -693,6 +701,11 @@ async function doRegister(){
   await saveMembers(members);
   el('regOk').textContent='✅ Account created! Your code is '+code+'. You can now sign in.';
   el('regOk').classList.remove('hidden');
+  // Notify founder of new team member
+  sendEmail('rehovtu@gmail.com','RehoVTU Team','🆕 New Team Member: '+name+' ('+code+')',
+    '<p><b>Name:</b> '+name+'<br><b>Role:</b> '+(ROLES?.[role]||role)+'<br><b>Code:</b> '+code+
+    '<br><b>Phone:</b> '+phone+'<br><b>Email:</b> '+email+
+    '<br><b>State:</b> '+state+'<br><b>Upline:</b> '+uplineCode+'</p>');
   sendEmail(email,name,'✅ Welcome to RehoVTU — Your Account is Ready!',
     '<p>Hi '+name+',</p><p>Your RehoVTU account is ready.<br>Code: <b>'+code+'</b><br>Role: '+ROLES[role]+'<br>Upline: '+(upline?upline.name:'—')+'</p>');
 }
@@ -1232,11 +1245,21 @@ async function submitSignup(){
   const customerName=el('su_n').value.trim();
   if(!customerName){el('suMsg').innerHTML=`<div class="alert alert-error">Customer name required.</div>`;return;}
   const signups=await getSignups();
-  signups.unshift({id:'S_'+Date.now(),customerName,amount:parseFloat(el('su_a').value)||0,
+  const ambCode=el('su_amb').value;
+  const newSig={id:'S_'+Date.now(),customerName,amount:parseFloat(el('su_a').value)||0,
     package:el('su_pkg').value.trim(),state:el('su_st').value.trim(),
-    ambassadorCode:el('su_amb').value,date:el('su_d').value,
-    note:el('su_note').value.trim(),recordedBy:currentUser.code});
-  await saveSignups(signups);closeSheet();renderTab('signups');
+    ambassadorCode:ambCode,date:el('su_d').value,
+    note:el('su_note').value.trim(),recordedBy:currentUser.code};
+  signups.unshift(newSig);
+  await saveSignups(signups);
+  // Notify founder
+  const members2=await getMembers();
+  const amb=members2.find(m=>m.code===ambCode);
+  sendEmail('rehovtu@gmail.com','RehoVTU Team','🎉 New Sign-up: '+customerName,
+    '<p><b>Customer:</b> '+customerName+'<br><b>Amount:</b> ₦'+newSig.amount.toLocaleString()+
+    '<br><b>Ambassador:</b> '+(amb?amb.name:ambCode)+' ('+ambCode+')'+
+    '<br><b>State:</b> '+(newSig.state||'—')+'<br><b>Date:</b> '+newSig.date+'</p>');
+  closeSheet();renderTab('signups');
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2052,36 +2075,162 @@ async function exportOrders(){
 }
 
 async function renderOrdersTab(){
-  const orders=(await getOrders()).sort((a,b)=>b.date.localeCompare(a.date));
-  const pending=orders.filter(o=>o.status==='Pending').length;
+  const [orders,members]=await Promise.all([getOrders(),getMembers()]);
+  const sorted=orders.sort((a,b)=>b.date.localeCompare(a.date));
+  const pending=sorted.filter(o=>o.status==='Pending').length;
+  const done=sorted.filter(o=>o.status==='Done').length;
   return`
     <div class="sec-title">VTU Site Orders
-      <button class="btn btn-success btn-sm" onclick="exportOrders()">📊 Export Excel</button>
+      <button class="btn btn-success btn-sm" onclick="exportOrders()">📊 Excel</button>
     </div>
-    <div class="stats-row">
-      <div class="stat"><div class="stat-label">Total Orders</div><div class="stat-value">${orders.length}</div></div>
-      <div class="stat"><div class="stat-label">Pending</div><div class="stat-value" style="color:var(--gold)">${pending}</div></div>
+    <div class="stats4" style="grid-template-columns:1fr 1fr 1fr;">
+      <div class="stat4 blue"><div class="stat4-num">${sorted.length}</div><div class="stat4-lbl">Total</div></div>
+      <div class="stat4 orange"><div class="stat4-num">${pending}</div><div class="stat4-lbl">Pending</div></div>
+      <div class="stat4 green"><div class="stat4-num">${done}</div><div class="stat4-lbl">Done</div></div>
     </div>
-    ${orders.length===0?'<div class="empty"><div style="font-size:28px">📭</div><div>No orders yet</div></div>':''}
-    ${orders.map(o=>`<div class="card">
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
-        <div><div style="font-weight:700;font-size:14px">${o.name}</div>
-          <div style="font-size:11px;color:var(--muted);margin-top:1px">${o.date} · ${o.time||''}</div></div>
-        <select onchange="updateOrderStatus('${o.id}',this.value)" style="font-size:11px;padding:3px 7px;border-radius:6px;border:1px solid var(--border);background:${o.status==='Done'?'var(--green-light)':o.status==='Building'?'#e0f0ff':'#fef3dc'}">
-          <option ${o.status==='Pending'?'selected':''}>Pending</option>
-          <option ${o.status==='Building'?'selected':''}>Building</option>
-          <option ${o.status==='Done'?'selected':''}>Done</option>
-        </select>
+    ${sorted.length===0?'<div class="empty"><div style="font-size:28px">📭</div><div>No orders yet</div></div>':''}
+    ${sorted.map(o=>{
+      // Find referrer
+      const referrer=o.ref?members.find(m=>m.code===o.ref.toUpperCase()||m.name.toLowerCase().includes(o.ref.toLowerCase())):null;
+      const statusColor=o.status==='Done'?'var(--green-light)':o.status==='Building'?'#e0f0ff':'#fef3dc';
+      const statusText=o.status==='Done'?'var(--green)':o.status==='Building'?'var(--blue)':'var(--gold)';
+      return`<div class="card" style="border-left:4px solid ${o.status==='Done'?'var(--green)':o.status==='Building'?'var(--blue)':'var(--gold)'}">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
+          <div>
+            <div style="font-weight:700;font-size:14px">${o.name}</div>
+            <div style="font-size:11px;color:var(--muted);margin-top:1px">${o.date} · ${o.phone}</div>
+          </div>
+          <select onchange="updateOrderStatus('${o.id}',this.value)"
+            style="font-size:11px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:${statusColor};color:${statusText};font-weight:700;cursor:pointer;">
+            <option ${o.status==='Pending'?'selected':''} value="Pending">Pending</option>
+            <option ${o.status==='Building'?'selected':''} value="Building">Building</option>
+            <option ${o.status==='Done'?'selected':''} value="Done">Done ✓</option>
+          </select>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:12px;margin-bottom:10px;">
+          <div><span style="color:var(--muted)">Email:</span> ${o.email||'—'}</div>
+          <div><span style="color:var(--muted)">State:</span> ${o.state||'—'}</div>
+          <div><span style="color:var(--muted)">Site Name:</span> <b>${o.sitename||'—'}</b></div>
+          <div><span style="color:var(--muted)">Source:</span> ${o.source||'—'}</div>
+          <div style="grid-column:1/-1"><span style="color:var(--muted)">Pay Ref:</span> <b>${o.payref||'—'}</b></div>
+          ${o.ref?`<div style="grid-column:1/-1;background:var(--green-light);padding:5px 8px;border-radius:6px;color:var(--green);font-weight:700;">
+            👤 Referred by: ${o.ref.toUpperCase()}${referrer?' — '+referrer.name:''}
+          </div>`:'<div style="grid-column:1/-1;color:var(--muted);">Direct (no referral)</div>'}
+        </div>
+        <div style="display:flex;gap:7px;">
+          <button class="btn btn-primary btn-sm" style="flex:1" onclick="openSiteDelivery('${o.id}')">📤 Send Site Details</button>
+          ${o.siteLink?`<button class="btn btn-gray btn-sm" onclick="openSiteDelivery('${o.id}')">✏️ Resend</button>`:''}
+        </div>
+        ${o.siteLink?`<div style="margin-top:6px;font-size:11px;background:var(--green-light);color:var(--green);padding:5px 9px;border-radius:6px;">✅ Site delivered: <a href="${o.siteLink}" target="_blank" style="color:var(--green);">${o.siteLink}</a></div>`:''}
+      </div>`;}).join('')}`;
+}
+
+async function openSiteDelivery(orderId){
+  const orders=await getOrders();
+  const o=orders.find(x=>x.id===orderId);
+  if(!o)return;
+  openSheet(`
+    <div class="sheet-title">📤 Send Site Details to ${o.name}<button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>
+    <div class="alert alert-info" style="font-size:12px;margin-bottom:12px;">This will email the customer their login details and affiliate link.</div>
+
+    <div style="font-size:11px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;">🔑 A) Login Details</div>
+    <div class="fg"><label class="fl">Their Login URL</label>
+      <input class="fi" id="sd_url" value="https://rehovtu.com" placeholder="https://rehovtu.com"></div>
+    <div class="fr">
+      <div class="fg"><label class="fl">Username / Email</label>
+        <input class="fi" id="sd_user" value="${o.email||''}" placeholder="their login email"></div>
+      <div class="fg"><label class="fl">Password</label>
+        <input class="fi" id="sd_pass" placeholder="their password"></div>
+    </div>
+    <div class="fg"><label class="fl">Their Affiliate Link</label>
+      <input class="fi" id="sd_link" placeholder="e.g. https://rehovtu.com/?ref=XXXXX"></div>
+
+    <div style="font-size:11px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.5px;margin:12px 0 8px;">📋 Preview (what they will receive)</div>
+    <div style="background:#f8fafc;border-radius:10px;padding:12px;font-size:12px;color:#334155;line-height:1.8;margin-bottom:12px;">
+      <b>Hi ${o.name},</b><br>
+      Your RehoVTU VTU site is LIVE! 🎉<br><br>
+      <b>Step 1 — Log in to your site:</b><br>
+      • Go to <b id="prev_url">https://rehovtu.com</b><br>
+      • Username: <b id="prev_user">${o.email||'[your email]'}</b><br>
+      • Password: <b id="prev_pass">[your password]</b><br><br>
+      <b>Step 2 — Get your affiliate link:</b><br>
+      • After logging in, go to <b>Services</b><br>
+      • Click <b>Affiliate</b><br>
+      • Copy your link: <b id="prev_link">[your link]</b><br>
+      • Paste on Google Chrome and share everywhere<br><br>
+      <b>Your site earns on autopilot! 🤖</b><br>
+      Always withdraw your profit from your RehoVTU dashboard.<br>
+      Get thousands of people to sign up on your site — share your link on WhatsApp groups, hostel chats, and social media.<br>
+      The more people use YOUR link, the more you earn daily!<br><br>
+      Thank you for choosing RehoVTU 💛
+    </div>
+    <button onclick="sendSiteDetails('${orderId}')" class="btn btn-success btn-full" style="padding:13px;">📧 Send Email to ${o.name}</button>
+  `);
+  // Live preview updates
+  ['sd_url','sd_user','sd_pass','sd_link'].forEach((id,i)=>{
+    const el2=document.getElementById(id);
+    const previewIds=['prev_url','prev_user','prev_pass','prev_link'];
+    if(el2)el2.addEventListener('input',()=>{
+      const p=document.getElementById(previewIds[i]);
+      if(p)p.textContent=el2.value||'[not set]';
+    });
+  });
+}
+
+async function sendSiteDetails(orderId){
+  const g=id=>document.getElementById(id)?.value||'';
+  const url=g('sd_url'),user=g('sd_user'),pass=g('sd_pass'),link=g('sd_link');
+  if(!pass||!link){alert('Please enter the password and affiliate link.');return;}
+  const orders=await getOrders();
+  const idx=orders.findIndex(o=>o.id===orderId);
+  if(idx<0)return;
+  const o=orders[idx];
+  // Save site details to order
+  orders[idx].siteLink=link;
+  orders[idx].siteUser=user;
+  orders[idx].status='Done';
+  await saveOrders(orders);
+
+  const emailBody=`
+<div style="font-family:sans-serif;max-width:480px;margin:0 auto;">
+  <div style="background:#0d1b2a;padding:20px;border-radius:12px 12px 0 0;text-align:center;">
+    <div style="font-size:24px;font-weight:900;color:#fff;">Reho<span style="color:#e8a020;">VTU</span></div>
+    <div style="font-size:12px;color:rgba(255,255,255,.6);margin-top:4px;">Your VTU Site is LIVE! 🎉</div>
+  </div>
+  <div style="background:#fff;padding:20px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">
+    <p>Hi <b>${o.name}</b>,</p>
+    <p>Your RehoVTU VTU website is ready and live! Here are your details:</p>
+    <div style="background:#f8fafc;border-radius:8px;padding:14px;margin:12px 0;">
+      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:8px;">STEP 1 — LOG IN TO YOUR SITE</div>
+      <div style="margin-bottom:5px;">🌐 <b>Go to:</b> <a href="${url}" style="color:#1a3a8f;">${url}</a></div>
+      <div style="margin-bottom:5px;">📧 <b>Username / Email:</b> <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;">${user}</code></div>
+      <div>🔑 <b>Password:</b> <code style="background:#e2e8f0;padding:2px 6px;border-radius:4px;">${pass}</code></div>
+    </div>
+    <div style="background:#f8fafc;border-radius:8px;padding:14px;margin:12px 0;">
+      <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;margin-bottom:8px;">STEP 2 — GET YOUR AFFILIATE LINK</div>
+      <div style="margin-bottom:5px;">1. After logging in, go to <b>Services</b></div>
+      <div style="margin-bottom:5px;">2. Click <b>Affiliate</b></div>
+      <div style="margin-bottom:5px;">3. Copy your link: <a href="${link}" style="color:#1a3a8f;word-break:break-all;">${link}</a></div>
+      <div>4. Paste on <b>Google Chrome</b> and share everywhere!</div>
+    </div>
+    <div style="background:#0d1b2a;border-radius:8px;padding:14px;color:#fff;margin:12px 0;">
+      <div style="font-size:13px;font-weight:700;color:#e8a020;margin-bottom:6px;">🤖 Your Site Earns on Autopilot!</div>
+      <div style="font-size:12px;color:rgba(255,255,255,.8);line-height:1.7;">
+        ✅ Always withdraw your profit from your RehoVTU dashboard<br>
+        📣 Share your link on <b>WhatsApp groups</b>, hostel chats, course groups & social media<br>
+        💡 The more people use YOUR link, the more you earn every day<br>
+        🎯 Target: Get 100+ people to sign up through your link this month
       </div>
-      <div style="font-size:12px;display:grid;grid-template-columns:1fr 1fr;gap:4px;">
-        <div><span style="color:var(--muted)">Phone:</span> ${o.phone}</div>
-        <div><span style="color:var(--muted)">State:</span> ${o.state||'—'}</div>
-        <div><span style="color:var(--muted)">Site Name:</span> ${o.sitename||'—'}</div>
-        <div><span style="color:var(--muted)">Source:</span> ${o.source||'—'}</div>
-        <div style="grid-column:1/-1"><span style="color:var(--muted)">Pay Ref:</span> <b>${o.payref||'—'}</b></div>
-        ${o.ref?`<div><span style="color:var(--muted)">Ref By:</span> ${o.ref}</div>`:''}
-      </div>
-    </div>`).join('')}`;
+    </div>
+    <p style="font-size:12px;color:#64748b;">Questions? Contact us: <a href="mailto:rehovtu@gmail.com">rehovtu@gmail.com</a> · 09037066499</p>
+    <p style="font-size:13px;font-weight:700;color:#0d1b2a;">Thank you for choosing RehoVTU 💛</p>
+  </div>
+</div>`;
+
+  await sendEmail(o.email,o.name,'🎉 Your RehoVTU VTU Site is LIVE!',emailBody);
+  closeSheet();
+  renderTab('orders');
+  alert('✅ Site details sent to '+o.name+' ('+o.email+')');
 }
 
 async function updateOrderStatus(id,status){
