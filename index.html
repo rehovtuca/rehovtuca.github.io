@@ -424,7 +424,18 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
           <div style="font-size:12px;color:#fff;margin-top:2px;">Reho VTU · Guaranty Trust Bank</div>
         </div>
       </div>
-      <div class="fg"><label class="fl">Payment Reference / Receipt</label><input class="fi" id="or_payref" placeholder="Transaction ID or screenshot description"></div>
+      <div class="fg">
+        <label class="fl">Payment Screenshot / Receipt</label>
+        <div style="border:2px dashed #e2e8f0;border-radius:10px;padding:16px;text-align:center;cursor:pointer;background:#f8fafc;margin-bottom:6px;" onclick="document.getElementById('or_screenshot').click()">
+          <div id="screenshotPreview" style="font-size:13px;color:#94a3b8;">
+            📸 Tap to upload payment screenshot<br>
+            <span style="font-size:11px;">(JPG, PNG, PDF accepted)</span>
+          </div>
+        </div>
+        <input type="file" id="or_screenshot" accept="image/*,.pdf" style="display:none;" onchange="previewScreenshot(this)">
+        <input type="hidden" id="or_payref" value="">
+        <input class="fi" id="or_payref_text" placeholder="Or type transaction reference / amount (optional)" style="margin-top:6px;">
+      </div>
       <button onclick="submitOrder()" class="btn btn-success btn-full" style="padding:14px;font-size:15px;">Submit Order →</button>
     </div>
   </div>
@@ -527,7 +538,7 @@ async function sendEmail(to,toName,subject,html){
     await fetch('https://api.brevo.com/v3/smtp/email',{
       method:'POST',
       headers:{'accept':'application/json','api-key':_bk,'content-type':'application/json'},
-      body:JSON.stringify({sender:{name:'RehoVTU',email:'rehovtu@gmail.com'},to:[{email:to,name:toName}],subject,htmlContent:html})
+      body:JSON.stringify({sender:{name:'RehoVTU',email:'rehovtuedu@gmail.com'},to:[{email:to,name:toName}],subject,htmlContent:html})
     });
   }catch{}
 }
@@ -814,7 +825,7 @@ async function renderTab(tab){
       case 'reports':     content.innerHTML=await renderReports();break;
       case 'logs':        content.innerHTML=await renderLogs();break;
       case 'excel':       content.innerHTML=renderExcelTab();break;
-      case 'orders':      content.innerHTML='<div class="empty">⏳</div>'; renderOrdersTab().then(h=>{const m=document.getElementById('appMain');if(m)m.innerHTML=h;});break;
+      case 'orders':      content.innerHTML='<div class="empty"><div style="font-size:28px">⏳</div></div>'; renderOrdersTab().then(h=>{try{document.getElementById('appMain').innerHTML=h;}catch(e){}});break;
       case 'admin':       content.innerHTML=renderAdminTools();break;
     }
   } else {
@@ -2038,8 +2049,47 @@ async function submitManualFine(){
   closeSheet();renderTab('fines');
 }
 
-async function getOrders(){try{const o=await FB.get('orders');if(o){LS.set('orders',o);return o;}}catch{}return LS.get('orders')||[];}
-async function saveOrders(o){LS.set('orders',o);await FB.set('orders',o);}
+async function getOrders(){
+  // Get from both sources and merge
+  const local = LS.get('orders') || [];
+  try{
+    const remote = await FB.get('orders');
+    if(remote && remote.length > 0){
+      // Merge: remote is source of truth but include any local-only items
+      const remoteIds = new Set(remote.map(o=>o.id));
+      const localOnly = local.filter(o=>!remoteIds.has(o.id));
+      const merged = [...localOnly, ...remote].sort((a,b)=>b.date.localeCompare(a.date));
+      LS.set('orders', merged);
+      if(localOnly.length > 0){ FB.set('orders', merged); } // sync local-only to Firebase
+      return merged;
+    }
+  }catch(e){}
+  return local;
+}
+async function saveOrders(o){
+  LS.set('orders',o); // save locally first - instant
+  try{ await FB.set('orders',o); } catch(e){ console.warn('Firebase save failed:',e); }
+}
+
+function previewScreenshot(input){
+  const file = input.files[0];
+  if(!file) return;
+  const preview = document.getElementById('screenshotPreview');
+  const payref = document.getElementById('or_payref');
+  if(file.type.startsWith('image/')){
+    const reader = new FileReader();
+    reader.onload = e => {
+      const b64 = e.target.result;
+      preview.innerHTML = '<img src="'+b64+'" style="max-width:100%;max-height:200px;border-radius:8px;object-fit:contain;">' +
+        '<div style="font-size:11px;color:var(--green);margin-top:6px;">✅ '+file.name+'</div>';
+      if(payref) payref.value = b64; // store base64 in hidden field
+    };
+    reader.readAsDataURL(file);
+  } else {
+    preview.innerHTML = '📄 '+file.name+'<div style="font-size:11px;color:var(--green);margin-top:4px;">✅ File selected</div>';
+    if(payref) payref.value = file.name;
+  }
+}
 
 async function submitOrder(){
   const g=id=>document.getElementById(id)?.value||'';
@@ -2048,17 +2098,25 @@ async function submitOrder(){
   const source=g('or_source'),ref=g('or_ref').trim(),payref=g('or_payref').trim();
   const err=el('orderErr'),ok=el('orderOk');
   err.classList.add('hidden');ok.classList.add('hidden');
-  if(!name||!phone||!email||!sitename||!payref){
-    err.textContent='Please fill all required fields including payment reference.';
+  const payrefText = (document.getElementById('or_payref_text')?.value||'').trim();
+  const payrefFinal = payref || payrefText || 'Screenshot uploaded';
+  if(!name||!phone||!email||!sitename){
+    err.textContent='Please fill Name, Phone, Email and Site Name.';
+    err.classList.remove('hidden');return;}
+  if(!payref && !payrefText){
+    err.textContent='Please upload a payment screenshot or enter a reference.';
     err.classList.remove('hidden');return;}
   const orders=await getOrders();
-  orders.unshift({id:'O_'+Date.now(),name,phone,email,state,sitename,source,ref,payref,
+  const hasScreenshot = payref && payref.startsWith('data:image');
+  orders.unshift({id:'O_'+Date.now(),name,phone,email,state,sitename,source,ref,
+    payref: hasScreenshot ? '[Screenshot uploaded]' : payrefFinal,
+    screenshot: hasScreenshot ? payref : null,
     date:today(),status:'Pending',time:new Date().toLocaleTimeString()});
   await saveOrders(orders);
   ok.textContent='✅ Order submitted! We will contact you within 48 hours. Payment reference: '+payref;
   ok.classList.remove('hidden');
   sendEmail('rehovtu@gmail.com','RehoVTU','🆕 New VTU Site Order — '+name,
-    '<p><b>Name:</b> '+name+'<br><b>Phone:</b> '+phone+'<br><b>Email:</b> '+email+'<br><b>State:</b> '+state+'<br><b>Site Name:</b> '+sitename+'<br><b>Source:</b> '+source+'<br><b>Referred By:</b> '+(ref||'Direct')+'<br><b>Payment Ref:</b> '+payref+'</p>');
+    '<p><b>Name:</b> '+name+'<br><b>Phone:</b> '+phone+'<br><b>Email:</b> '+email+'<br><b>State:</b> '+state+'<br><b>Site Name:</b> '+sitename+'<br><b>Source:</b> '+source+'<br><b>Referred By:</b> '+(ref||'Direct')+'<br><b>Payment:</b> '+(payref.startsWith('data:image')?'Screenshot uploaded':payrefFinal)+'</p>');
   sendEmail(email,name,'✅ Your RehoVTU Site Order Received!',
     '<p>Hi '+name+',</p><p>We received your order for <b>'+sitename+'</b>. Your site will be ready within 48 hours.</p><p>Payment reference: <b>'+payref+'</b></p><p>We will contact you on <b>'+phone+'</b> once it is ready.</p><p>RehoVTU Team</p>');
 }
@@ -2113,7 +2171,10 @@ async function renderOrdersTab(){
           <div><span style="color:var(--muted)">State:</span> ${o.state||'—'}</div>
           <div><span style="color:var(--muted)">Site Name:</span> <b>${o.sitename||'—'}</b></div>
           <div><span style="color:var(--muted)">Source:</span> ${o.source||'—'}</div>
-          <div style="grid-column:1/-1"><span style="color:var(--muted)">Pay Ref:</span> <b>${o.payref||'—'}</b></div>
+          <div style="grid-column:1/-1">
+          <span style="color:var(--muted)">Payment:</span> 
+          ${o.screenshot?'<div style=\"margin-top:4px\"><img src=\"'+o.screenshot+'\" style=\"max-width:100%;max-height:160px;border-radius:8px;object-fit:contain;border:1px solid var(--border)\"></div>':'<b>'+( o.payref||'—')+'</b>'}
+        </div>
           ${o.ref?`<div style="grid-column:1/-1;background:var(--green-light);padding:5px 8px;border-radius:6px;color:var(--green);font-weight:700;">
             👤 Referred by: ${o.ref.toUpperCase()}${referrer?' — '+referrer.name:''}
           </div>`:'<div style="grid-column:1/-1;color:var(--muted);">Direct (no referral)</div>'}
@@ -2346,4 +2407,3 @@ async function forceSync(){
 </script>
 </body>
 </html>
-      else if(tab==='orders')  main.innerHTML=await renderOrdersTab();
