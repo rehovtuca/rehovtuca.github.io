@@ -344,8 +344,15 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
             <option value="pfc">Project & Finance Coordinator</option>
           </select>
         </div>
-        <div class="fg"><label class="fl">Your Upline</label>
-          <select class="fsl" id="rg_upline"><option value="">Loading...</option></select>
+        <div class="fg">
+          <label class="fl">Your Upline</label>
+          <!-- Referral banner - shown when joining via referral link -->
+          <div id="refBanner" style="display:none;background:linear-gradient(135deg,#1a3a8f,#1a6b3c);border-radius:8px;padding:9px 12px;margin-bottom:7px;font-size:12px;color:#fff;font-weight:600;">
+            🔗 Referred by: <span id="refBannerName" style="color:#f5b944;"></span>
+          </div>
+          <input class="fi" id="rg_upline_search" placeholder="🔍 Search by name or code..." oninput="filterUplineList()" style="margin-bottom:5px;font-size:13px;">
+          <select class="fsl" id="rg_upline" size="4" style="height:auto;min-height:80px;border-radius:8px;padding:4px;"></select>
+          <div id="rg_upline_count" style="font-size:11px;color:var(--muted);margin-top:3px;text-align:right;"></div>
         </div>
         <div style="background:#f8fafc;border-radius:10px;padding:12px;margin-bottom:11px;">
           <div style="font-size:11px;font-weight:800;color:#0a1628;text-transform:uppercase;letter-spacing:.5px;margin-bottom:9px;">🏦 Bank Details</div>
@@ -434,7 +441,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
         </div>
         <input type="file" id="or_screenshot" accept="image/*,.pdf" style="display:none;" onchange="previewScreenshot(this)">
         <input type="hidden" id="or_payref" value="">
-        <input class="fi" id="or_payref_text" placeholder="Or type transaction reference / amount (optional)" style="margin-top:6px;">
+        <div id="screenshotRequired" style="display:none;font-size:12px;color:#b91c1c;margin-top:4px;">⚠️ Please upload your payment screenshot before submitting.</div>
       </div>
       <button onclick="submitOrder()" class="btn btn-success btn-full" style="padding:14px;font-size:15px;">Submit Order →</button>
     </div>
@@ -457,7 +464,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
       </div>
     </div>
     <div class="hdr-actions">
-      <button class="hdr-bell" onclick="showNotifs()">🔔</button>
+      <button class="hdr-bell" id="bellBtn" onclick="showNotifs()" style="position:relative;">🔔</button>
       <button class="hdr-logout-btn" onclick="doLogout()">Logout</button>
     </div>
   </div>
@@ -525,8 +532,8 @@ const ROLE_SHORT={founder:'FD',pfc:'PF',pm:'PM',cc:'CC',ambassador:'AM'};
 const PREFIXES={pfc:'PF',pm:'PM',cc:'CC',ambassador:'AM'};
 const ROLE_ORDER=['founder','pfc','pm','cc','ambassador'];
 const DOWNLINE={founder:'pfc',pfc:'pm',pm:'cc',cc:'ambassador'};
-const COMM_RATES={ambassador:500,cc:100,pm:50,pfc:25};
-const TARGETS={ambassador:100,cc:2000,pm:10000,pfc:50000};
+const COMM_RATES={ambassador:600,cc:200,pm:100,pfc:50};
+const TARGETS={ambassador:100,cc:2500,pm:20000,pfc:100000};
 const DEDUCTIONS={ambassador:{daily:500,weekly:500,monthly:500},cc:{daily:1e3,weekly:1e3,monthly:1e3},pm:{daily:2e3,weekly:2e3,monthly:2e3},pfc:{daily:3e3,weekly:3e3,monthly:3e3}};
 const REHOVTU_ACCT={name:'RehoVTU',bank:'Guaranty Trust Bank',number:'3004221210'};
 
@@ -610,7 +617,15 @@ function getUpline(members,member){if(!member.uplineCode)return null;return memb
 function getDownlines(members,member){return members.filter(m=>m.uplineCode===member.code);}
 function getAllDownlineCodes(members,code){const r=[];function w(c){members.filter(m=>m.uplineCode===c).forEach(ch=>{r.push(ch.code);w(ch.code);});}w(code);return r;}
 function totalTeamSignups(signups,members,code){const subs=getAllDownlineCodes(members,code);subs.push(code);return signups.filter(s=>subs.includes(s.ambassadorCode)).length;}
-function memberCommEarned(signups,member){const direct=signups.filter(s=>s.ambassadorCode===member.code).length;return direct*(COMM_RATES[member.role]||0);}
+function memberCommEarned(signups,member,members){
+  const rate=COMM_RATES[member.role]||0;
+  if(member.role==='ambassador'||!members){
+    const direct=signups.filter(s=>s.ambassadorCode===member.code).length;
+    return direct*rate;
+  }
+  const teamCount=totalTeamSignups(signups,members,member.code);
+  return teamCount*rate;
+}
 function memberCommPaid(payments,code){return payments.filter(p=>p.memberCode===code&&p.type==='commission').reduce((s,p)=>s+p.amount,0);}
 
 function nextCode(members,role){
@@ -631,6 +646,8 @@ function nextCode(members,role){
 // AUTH
 // ═══════════════════════════════════════════════════════════
 let currentUser=null;
+let _pendingRefCode=null;  // set when page opened via referral link
+let _pendingJoinRole=null; // set when page opened via ?ref=X&join=ROLE link
 
 function switchAuth(tab){
   ['login','register','reset'].forEach(t=>{
@@ -639,7 +656,7 @@ function switchAuth(tab){
       b.classList.toggle('active',['login','register','reset'][i]===tab);
     });
   });
-  if(tab==='register') loadUplineOptions();
+  if(tab==='register') loadUplineOptions(_pendingRefCode);
 }
 
 function showLoginCard(tab){
@@ -648,7 +665,14 @@ function showLoginCard(tab){
   el('orderFormPage').style.display='none';
   switchAuth(tab);
   window.scrollTo(0,0);
-  if(tab==='register') setTimeout(loadUplineOptions,150);
+  if(tab==='register'){
+    // If we have a pending role from a referral link, apply it
+    if(_pendingJoinRole){
+      const roleEl=el('rg_role');
+      if(roleEl) roleEl.value=_pendingJoinRole;
+    }
+    setTimeout(()=>loadUplineOptions(_pendingRefCode),150);
+  }
 }
 function showLanding(){
   el('landingPage').style.display='block';
@@ -663,16 +687,144 @@ function showOrderForm(){
   window.scrollTo(0,0);
 }
 
+// PWA Install handler
+let _deferredInstallPrompt=null;
+window.addEventListener('beforeinstallprompt',function(e){
+  e.preventDefault();
+  _deferredInstallPrompt=e;
+});
+function doInstall(){
+  const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isAndroid=/android/i.test(navigator.userAgent);
+  const isStandalone=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone;
+
+  if(isStandalone){
+    alert('✅ App is already installed on your device!');
+    return;
+  }
+
+  // Use native install prompt if available (Android Chrome)
+  if(_deferredInstallPrompt){
+    _deferredInstallPrompt.prompt();
+    _deferredInstallPrompt.userChoice.then(function(result){
+      if(result.outcome==='accepted'){
+        alert('✅ RehoVTU has been installed! Find it on your home screen.');
+      }
+      _deferredInstallPrompt=null;
+    });
+    return;
+  }
+
+  // Fallback: show manual instructions modal
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:flex-end;';
+  const modal=document.createElement('div');
+  modal.style.cssText='background:#1a2942;border-radius:20px 20px 0 0;padding:24px 20px 40px;width:100%;max-height:85vh;overflow-y:auto;';
+
+  if(isIOS){
+    modal.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">'
+      +'<div style="font-size:17px;font-weight:800;color:#fff;">📲 Install on iPhone/iPad</div>'
+      +'<button onclick="this.closest(\'div[style*=position\\:fixed]\').remove()" style="background:rgba(255,255,255,.15);border:none;border-radius:50%;width:30px;height:30px;color:#fff;font-size:16px;cursor:pointer;">✕</button>'
+      +'</div>'
+      +'<div style="background:rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:12px;">'
+      +'<div style="color:#f5b944;font-weight:700;margin-bottom:6px;">Step 1</div>'
+      +'<div style="color:rgba(255,255,255,.85);font-size:14px;">Tap the <b style="color:#fff;">Share button</b> (□↑) at the bottom of Safari</div>'
+      +'</div>'
+      +'<div style="background:rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:12px;">'
+      +'<div style="color:#f5b944;font-weight:700;margin-bottom:6px;">Step 2</div>'
+      +'<div style="color:rgba(255,255,255,.85);font-size:14px;">Scroll down and tap <b style="color:#fff;">"Add to Home Screen"</b></div>'
+      +'</div>'
+      +'<div style="background:rgba(255,255,255,.08);border-radius:12px;padding:14px;">'
+      +'<div style="color:#f5b944;font-weight:700;margin-bottom:6px;">Step 3</div>'
+      +'<div style="color:rgba(255,255,255,.85);font-size:14px;">Tap <b style="color:#fff;">"Add"</b> — RehoVTU will appear on your home screen!</div>'
+      +'</div>'
+      +'<div style="margin-top:16px;font-size:12px;color:rgba(255,255,255,.4);text-align:center;">Must be opened in Safari for this to work</div>';
+  } else if(isAndroid){
+    modal.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">'
+      +'<div style="font-size:17px;font-weight:800;color:#fff;">📲 Install on Android</div>'
+      +'<button onclick="this.closest(\'div[style*=position\\:fixed]\').remove()" style="background:rgba(255,255,255,.15);border:none;border-radius:50%;width:30px;height:30px;color:#fff;font-size:16px;cursor:pointer;">✕</button>'
+      +'</div>'
+      +'<div style="background:rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:12px;">'
+      +'<div style="color:#f5b944;font-weight:700;margin-bottom:6px;">Step 1</div>'
+      +'<div style="color:rgba(255,255,255,.85);font-size:14px;">Open <b style="color:#fff;">rehovtu.netlify.app</b> in Chrome browser</div>'
+      +'</div>'
+      +'<div style="background:rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:12px;">'
+      +'<div style="color:#f5b944;font-weight:700;margin-bottom:6px;">Step 2</div>'
+      +'<div style="color:rgba(255,255,255,.85);font-size:14px;">Tap the <b style="color:#fff;">⋮ menu</b> (3 dots) at top right</div>'
+      +'</div>'
+      +'<div style="background:rgba(255,255,255,.08);border-radius:12px;padding:14px;">'
+      +'<div style="color:#f5b944;font-weight:700;margin-bottom:6px;">Step 3</div>'
+      +'<div style="color:rgba(255,255,255,.85);font-size:14px;">Tap <b style="color:#fff;">"Add to Home screen"</b> or <b style="color:#fff;">"Install app"</b></div>'
+      +'</div>'
+      +'<div style="margin-top:16px;font-size:12px;color:rgba(255,255,255,.4);text-align:center;">Note: Must be on rehovtu.netlify.app (not a local file)</div>';
+  } else {
+    modal.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">'
+      +'<div style="font-size:17px;font-weight:800;color:#fff;">📲 Install RehoVTU App</div>'
+      +'<button onclick="this.closest(\'div[style*=position\\:fixed]\').remove()" style="background:rgba(255,255,255,.15);border:none;border-radius:50%;width:30px;height:30px;color:#fff;font-size:16px;cursor:pointer;">✕</button>'
+      +'</div>'
+      +'<div style="background:rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:12px;">'
+      +'<div style="color:rgba(255,255,255,.85);font-size:14px;">Visit <b style="color:#f5b944;">rehovtu.netlify.app</b> in Chrome or Edge, then use the browser menu to install.</div>'
+      +'</div>'
+      +'<div style="margin-top:8px;font-size:12px;color:rgba(255,255,255,.4);text-align:center;">Chrome: ⋮ → Install app &nbsp;|&nbsp; Edge: ··· → Apps → Install</div>';
+  }
+
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click',function(e){if(e.target===overlay)overlay.remove();});
+}
+
 // Populate upline dropdown based on selected role
-async function loadUplineOptions(){
-  const role=el('rg_role')?el('rg_role').value:'ambassador';
+let _uplineAllOptions=[]; // cache for search filtering
+
+async function loadUplineOptions(autoSelectCode){
+  const roleEl=el('rg_role');
+  const role=roleEl?roleEl.value:'ambassador';
   const uplineRole={ambassador:'cc',cc:'pm',pm:'pfc',pfc:'founder'}[role]||'founder';
   const sel=el('rg_upline');
-  sel.innerHTML='<option value="">Loading…</option>';
+  const searchEl=el('rg_upline_search');
+  const countEl=el('rg_upline_count');
+  if(searchEl) searchEl.value='';
+  sel.innerHTML='<option value="" disabled>Loading…</option>';
   const members=await getMembers();
-  const options=members.filter(m=>m.role===uplineRole||m.role==='founder');
-  if(options.length===0){sel.innerHTML='<option value="">No uplines available</option>';return;}
-  sel.innerHTML=options.map(m=>`<option value="${m.code}">${m.name} (${m.code})</option>`).join('');
+  // For ambassador: show all CCs. For others: show exact upline role.
+  let options=members.filter(m=>m.role===uplineRole||(uplineRole==='founder'&&m.role==='founder'));
+  _uplineAllOptions=options;
+  renderUplineOptions(options, sel, countEl);
+  // Auto-select if a referral code was passed
+  const code=autoSelectCode||_pendingRefCode;
+  if(code){
+    // Find the option that matches - if ref is a CC and role is ambassador, select that CC
+    const match=options.find(m=>m.code===code);
+    if(match){
+      sel.value=code;
+      // Show banner
+      const banner=el('refBanner');
+      const bannerName=el('refBannerName');
+      if(banner&&bannerName){banner.style.display='block';bannerName.textContent=match.name+' ('+match.code+')';}
+    }
+  }
+}
+
+function renderUplineOptions(options, sel, countEl){
+  if(!sel)return;
+  if(options.length===0){
+    sel.innerHTML='<option value="" disabled>No uplines available</option>';
+    if(countEl)countEl.textContent='0 found';
+    return;
+  }
+  sel.innerHTML=options.map(m=>`<option value="${m.code}">${m.name} · ${m.code}${m.state?' · '+m.state:''}</option>`).join('');
+  if(countEl)countEl.textContent=options.length+' upline'+(options.length===1?'':'s')+' available';
+}
+
+function filterUplineList(){
+  const q=(el('rg_upline_search')||{}).value||'';
+  const lower=q.toLowerCase().trim();
+  const filtered=lower?_uplineAllOptions.filter(m=>
+    m.name.toLowerCase().includes(lower)||
+    m.code.toLowerCase().includes(lower)||
+    (m.state||'').toLowerCase().includes(lower)
+  ):_uplineAllOptions;
+  renderUplineOptions(filtered, el('rg_upline'), el('rg_upline_count'));
 }
 
 async function doLogin(){
@@ -696,7 +848,8 @@ async function doRegister(){
   const pass=el('rg_pass').value;
   el('regErr').classList.add('hidden');el('regOk').classList.add('hidden');
   if(!name||!email||!pass||!uplineCode){
-    el('regErr').textContent='All fields required.';el('regErr').classList.remove('hidden');return;}
+    el('regErr').textContent=!uplineCode?'Please select your upline from the list.':'All fields required.';
+    el('regErr').classList.remove('hidden');return;}
   // Always fetch fresh from Firebase before writing
   const members=await getMembers();
   if(members.find(m=>m.email.toLowerCase()===email)){
@@ -712,13 +865,55 @@ async function doRegister(){
   await saveMembers(members);
   el('regOk').textContent='✅ Account created! Your code is '+code+'. You can now sign in.';
   el('regOk').classList.remove('hidden');
-  // Notify founder of new team member
-  sendEmail('rehovtu@gmail.com','RehoVTU Team','🆕 New Team Member: '+name+' ('+code+')',
-    '<p><b>Name:</b> '+name+'<br><b>Role:</b> '+(ROLES?.[role]||role)+'<br><b>Code:</b> '+code+
-    '<br><b>Phone:</b> '+phone+'<br><b>Email:</b> '+email+
-    '<br><b>State:</b> '+state+'<br><b>Upline:</b> '+uplineCode+'</p>');
+
+  const roleLabel=ROLES[role]||role;
+  const regHeader=`<div style="font-family:sans-serif;max-width:520px;margin:0 auto;"><div style="background:#0d1b2a;padding:18px 24px;text-align:center;border-radius:12px 12px 0 0;"><div style="font-size:24px;font-weight:900;color:#fff;">Reho<span style="color:#e8a020;">VTU</span></div></div>`;
+  const regFooter=`<p style="font-size:11px;color:#94a3b8;margin-top:16px;">Questions? <a href="mailto:rehovtuedu@gmail.com" style="color:#1a3a8f;">rehovtuedu@gmail.com</a> · 09037066499</p></div></div>`;
+
+  // Email founder
+  sendEmail('rehovtuedu@gmail.com','RehoVTU Team','🆕 New Team Member: '+name+' ('+code+')',
+    regHeader+`<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">
+      <h2 style="color:#0d1b2a;margin:0 0 12px;">🆕 New Team Member Registered</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tr><td style="padding:5px 0;color:#64748b;width:110px;">Name</td><td style="padding:5px 0;font-weight:600;">${name}</td></tr>
+        <tr style="background:#f8fafc;"><td style="padding:5px 8px;color:#64748b;">Role</td><td style="padding:5px 8px;font-weight:600;">${roleLabel}</td></tr>
+        <tr><td style="padding:5px 0;color:#64748b;">Code</td><td style="padding:5px 0;font-family:monospace;font-weight:700;color:#1a3a8f;">${code}</td></tr>
+        <tr style="background:#f8fafc;"><td style="padding:5px 8px;color:#64748b;">Phone</td><td style="padding:5px 8px;font-weight:600;">${phone}</td></tr>
+        <tr><td style="padding:5px 0;color:#64748b;">Email</td><td style="padding:5px 0;font-weight:600;">${email}</td></tr>
+        <tr style="background:#f8fafc;"><td style="padding:5px 8px;color:#64748b;">State</td><td style="padding:5px 8px;font-weight:600;">${state||'—'}</td></tr>
+        <tr><td style="padding:5px 0;color:#64748b;">Upline</td><td style="padding:5px 0;font-weight:600;">${upline?upline.name+' ('+uplineCode+')':uplineCode}</td></tr>
+      </table>
+    `+regFooter);
+
+  // Welcome email to new member
   sendEmail(email,name,'✅ Welcome to RehoVTU — Your Account is Ready!',
-    '<p>Hi '+name+',</p><p>Your RehoVTU account is ready.<br>Code: <b>'+code+'</b><br>Role: '+ROLES[role]+'<br>Upline: '+(upline?upline.name:'—')+'</p>');
+    regHeader+`<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">
+      <h2 style="color:#0d1b2a;margin:0 0 4px;">Welcome, ${name.split(' ')[0]}! 🎉</h2>
+      <p style="color:#64748b;font-size:13px;margin:0 0 14px;">Your RehoVTU account has been created.</p>
+      <div style="background:#f0fdf4;border-radius:10px;padding:14px;margin-bottom:14px;border-left:4px solid #1a6b3c;">
+        <p style="margin:0 0 8px;font-weight:700;color:#1a6b3c;">🎯 Your Account Details</p>
+        <p style="margin:4px 0;font-size:13px;">Member Code: <b style="font-family:monospace;color:#1a3a8f;">${code}</b></p>
+        <p style="margin:4px 0;font-size:13px;">Role: <b>${roleLabel}</b></p>
+        <p style="margin:4px 0;font-size:13px;">Upline: <b>${upline?upline.name:uplineCode}</b></p>
+      </div>
+      <p style="font-size:13px;color:#334155;">Log in at <a href="https://rehovtuca.github.io" style="color:#1a3a8f;font-weight:700;">rehovtuca.github.io</a> using your email and password.</p>
+      <p style="font-size:13px;color:#334155;">Your referral link: <code style="background:#f8fafc;padding:2px 6px;border-radius:4px;font-size:12px;">rehovtuca.github.io/?ref=${code}&amp;join=${DOWNLINE[role]||'ambassador'}</code></p>
+    `+regFooter);
+
+  // Notify the upline member that someone joined under them
+  if(upline&&upline.email&&upline.role!=='founder'){
+    sendEmail(upline.email,upline.name,'👥 New Member Joined Under You — '+name,
+      regHeader+`<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">
+        <h2 style="color:#0d1b2a;margin:0 0 4px;">👥 New Team Member!</h2>
+        <p style="color:#64748b;font-size:13px;margin:0 0 14px;">Hi <b>${upline.name.split(' ')[0]}</b>, someone just joined your team.</p>
+        <div style="background:#f0fdf4;border-radius:10px;padding:14px;margin-bottom:14px;border-left:4px solid #1a6b3c;">
+          <p style="margin:0 0 4px;font-weight:700;color:#1a6b3c;">🎉 ${name} is now under you as a ${roleLabel}</p>
+          <p style="margin:6px 0 0;font-size:13px;color:#334155;">Phone: <b>${phone}</b> &nbsp;|&nbsp; State: <b>${state||'—'}</b></p>
+        </div>
+        <p style="font-size:13px;color:#334155;">Log in to your dashboard to see your growing team.</p>
+        <p><a href="https://rehovtuca.github.io" style="background:#1a3a8f;color:#fff;padding:9px 18px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;font-size:13px;">View Dashboard →</a></p>
+      `+regFooter);
+  }
 }
 
 async function doReset(){
@@ -802,6 +997,8 @@ async function showApp(){
   buildNav();
   await renderTab(currentTab);
   setTimeout(checkAndApplyFines,3000);
+  setTimeout(loadBellCount,1000);
+  setInterval(loadBellCount,60000);
   setInterval(checkAndApplyFines,300000);
 }
 
@@ -852,7 +1049,7 @@ async function renderFounderDash(){
   const todaySigs=signups.filter(s=>s.date===today()).length;
   const todayLogs=logs.filter(l=>l.date===today());
   const roleCount=r=>team.filter(m=>m.role===r).length;
-  const refLink=`${location.origin}${location.pathname}?ref=FOUNDER`;
+  const refLink=`${location.origin}${location.pathname}?ref=FOUNDER&join=pfc`;
   return`
     <div class="acct-banner">
       <div class="acct-bank">${REHOVTU_ACCT.bank}</div>
@@ -929,11 +1126,11 @@ async function openMemberDetail(code){
   const downlines=getDownlines(members,m);
   const directSigs=signups.filter(s=>s.ambassadorCode===m.code).length;
   const teamSigs=totalTeamSignups(signups,members,m.code);
-  const earned=memberCommEarned(signups,m);
+  const earned=memberCommEarned(signups,m,members);
   const paid=memberCommPaid(payments,m.code);
   const owed=Math.max(0,earned-paid);
   const recentLogs=logs.filter(l=>l.memberCode===m.code).slice(0,4);
-  const refLink=`${location.origin}${location.pathname}?ref=${m.code}`;
+  const refLink=`${location.origin}${location.pathname}?ref=${m.code}&join=${DOWNLINE[m.role]||'ambassador'}`;
   openSheet(`
     <div class="sheet-title">${m.name}<button class="close-btn" onclick="closeSheet()">✕</button></div>
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">${ava(m,46)}
@@ -1264,13 +1461,64 @@ async function submitSignup(){
     note:el('su_note').value.trim(),recordedBy:currentUser.code};
   signups.unshift(newSig);
   await saveSignups(signups);
-  // Notify founder
+
   const members2=await getMembers();
   const amb=members2.find(m=>m.code===ambCode);
-  sendEmail('rehovtu@gmail.com','RehoVTU Team','🎉 New Sign-up: '+customerName,
-    '<p><b>Customer:</b> '+customerName+'<br><b>Amount:</b> ₦'+newSig.amount.toLocaleString()+
-    '<br><b>Ambassador:</b> '+(amb?amb.name:ambCode)+' ('+ambCode+')'+
-    '<br><b>State:</b> '+(newSig.state||'—')+'<br><b>Date:</b> '+newSig.date+'</p>');
+
+  // Build full upline chain for notifications
+  let chain=[];
+  if(amb){
+    let cur=amb;
+    chain.push(cur);
+    while(cur.uplineCode){
+      const up=members2.find(m=>m.code===cur.uplineCode);
+      if(!up)break;
+      chain.push(up);
+      cur=up;
+    }
+  }
+
+  const sigHeader=`<div style="font-family:sans-serif;max-width:520px;margin:0 auto;"><div style="background:#0d1b2a;padding:18px 24px;text-align:center;border-radius:12px 12px 0 0;"><div style="font-size:24px;font-weight:900;color:#fff;">Reho<span style="color:#e8a020;">VTU</span></div></div>`;
+  const sigFooter=`<p style="font-size:11px;color:#94a3b8;margin-top:16px;">Questions? <a href="mailto:rehovtuedu@gmail.com" style="color:#1a3a8f;">rehovtuedu@gmail.com</a> · 09037066499</p></div></div>`;
+
+  // Email founder
+  sendEmail('rehovtuedu@gmail.com','RehoVTU Team','🎉 New Sign-up: '+customerName,
+    sigHeader+`<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">
+      <h2 style="color:#0d1b2a;margin:0 0 12px;">🎉 New Customer Sign-up Recorded</h2>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;">
+        <tr><td style="padding:5px 0;color:#64748b;width:120px;">Customer</td><td style="padding:5px 0;font-weight:600;">${customerName}</td></tr>
+        <tr style="background:#f8fafc;"><td style="padding:5px 8px;color:#64748b;">Amount</td><td style="padding:5px 8px;font-weight:700;color:#1a6b3c;">₦${newSig.amount.toLocaleString()}</td></tr>
+        <tr><td style="padding:5px 0;color:#64748b;">Ambassador</td><td style="padding:5px 0;font-weight:600;">${amb?amb.name:ambCode} (${ambCode})</td></tr>
+        <tr style="background:#f8fafc;"><td style="padding:5px 8px;color:#64748b;">State</td><td style="padding:5px 8px;font-weight:600;">${newSig.state||'—'}</td></tr>
+        <tr><td style="padding:5px 0;color:#64748b;">Package</td><td style="padding:5px 0;font-weight:600;">${newSig.package||'—'}</td></tr>
+        <tr style="background:#f8fafc;"><td style="padding:5px 8px;color:#64748b;">Date</td><td style="padding:5px 8px;font-weight:600;">${newSig.date}</td></tr>
+      </table>
+    `+sigFooter);
+
+  // Email each member in the upline chain (excluding founder)
+  const commissionMap={ambassador:600,cc:200,pm:100,pfc:50};
+  for(const member of chain){
+    if(!member.email||member.role==='founder')continue;
+    const commission=commissionMap[member.role]||0;
+    sendEmail(member.email,member.name,'🎉 New Sign-up in Your Network — ₦'+commission.toLocaleString()+' Earned',
+      sigHeader+`<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">
+        <h2 style="color:#0d1b2a;margin:0 0 4px;">🎉 New Sign-up!</h2>
+        <p style="color:#64748b;font-size:13px;margin:0 0 14px;">Hi <b>${member.name.split(' ')[0]}</b>,</p>
+        <div style="background:#f0fdf4;border-radius:10px;padding:14px;margin-bottom:14px;border-left:4px solid #1a6b3c;">
+          <p style="margin:0 0 4px;font-weight:700;color:#1a6b3c;"><b>${customerName}</b> signed up via your network</p>
+          <p style="margin:6px 0 0;font-size:14px;color:#334155;">Your commission: <b style="color:#1a6b3c;font-size:16px;">+₦${commission.toLocaleString()}</b></p>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr><td style="padding:5px 0;color:#64748b;width:110px;">Customer</td><td style="padding:5px 0;font-weight:600;">${customerName}</td></tr>
+          <tr style="background:#f8fafc;"><td style="padding:5px 8px;color:#64748b;">Ambassador</td><td style="padding:5px 8px;font-weight:600;">${amb?amb.name:ambCode}</td></tr>
+          <tr><td style="padding:5px 0;color:#64748b;">State</td><td style="padding:5px 0;font-weight:600;">${newSig.state||'—'}</td></tr>
+          <tr style="background:#f8fafc;"><td style="padding:5px 8px;color:#64748b;">Date</td><td style="padding:5px 8px;font-weight:600;">${newSig.date}</td></tr>
+        </table>
+        <p style="font-size:13px;color:#334155;margin-top:12px;">Log in to track your total earnings.</p>
+        <p><a href="https://rehovtuca.github.io" style="background:#1a3a8f;color:#fff;padding:9px 18px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;font-size:13px;">View My Earnings →</a></p>
+      `+sigFooter);
+  }
+
   closeSheet();renderTab('signups');
 }
 
@@ -1281,11 +1529,14 @@ async function renderCommissions(){
   const [members,signups,payments]=await Promise.all([getMembers(),getSignups(),getPayments()]);
   const team=members.filter(m=>m.role!=='founder');
   const rows=team.map(m=>{
-    const direct=signups.filter(s=>s.ambassadorCode===m.code).length;
     const rate=COMM_RATES[m.role]||0;
-    const earned=direct*rate;
+    // Ambassador: own direct sign-ups; CC/PM/PFC: entire downline tree
+    const sigCount=m.role==='ambassador'
+      ?signups.filter(s=>s.ambassadorCode===m.code).length
+      :totalTeamSignups(signups,members,m.code);
+    const earned=sigCount*rate;
     const paid=memberCommPaid(payments,m.code);
-    return{m,direct,earned,paid,owed:Math.max(0,earned-paid)};
+    return{m,sigCount,earned,paid,owed:Math.max(0,earned-paid)};
   }).sort((a,b)=>b.earned-a.earned);
   const totalEarned=rows.reduce((s,r)=>s+r.earned,0);
   const totalOwed=rows.reduce((s,r)=>s+r.owed,0);
@@ -1300,7 +1551,7 @@ async function renderCommissions(){
         ${rows.map(r=>`<tr onclick="openMemberDetail('${r.m.code}')">
           <td><div style="font-weight:600">${r.m.name.split(' ')[0]}</div>
             <div style="font-size:10px;color:var(--muted)">${r.m.code}·₦${(COMM_RATES[r.m.role]||0).toLocaleString()}/sig</div></td>
-          <td>${r.direct}</td>
+          <td>${r.sigCount}</td>
           <td class="mono pos">${fmt(r.earned)}</td>
           <td class="mono ${r.owed>0?'neg':'pos'}">${fmt(r.owed)}</td></tr>`).join('')}
       </tbody></table></div>
@@ -1619,7 +1870,7 @@ async function renderMemberDash(){
   const rs=ROLE_SUMMARIES[m.role]||{};
   const directSigs=signups.filter(s=>s.ambassadorCode===m.code).length;
   const teamSigs=totalTeamSignups(signups,members,m.code);
-  const earned=memberCommEarned(signups,m);
+  const earned=memberCommEarned(signups,m,members);
   const paid=memberCommPaid(payments,m.code);
   const owed=Math.max(0,earned-paid);
   const target=rs.target||100;
@@ -1628,7 +1879,7 @@ async function renderMemberDash(){
   const myFines=fines.filter(f=>f.memberCode===m.code);
   const totalFines=myFines.reduce((s,f)=>s+f.amount,0);
   const todayFined=myFines.find(f=>f.date===today());
-  const refLink=location.origin+location.pathname+'?ref='+m.code;
+  const refLink=location.origin+location.pathname+'?ref='+m.code+'&join='+(DOWNLINE[m.role]||'ambassador');
   const downlines=getDownlines(members,m);
   const recentReports=reports.filter(r=>r.memberCode===m.code).slice(0,2);
 
@@ -1997,7 +2248,10 @@ async function renderFinesTab(){
   const total=fines.reduce((s,f)=>s+f.amount,0);
   return`
     <div class="sec-title">Penalty Records
-      <button class="btn btn-danger btn-sm" onclick="openManualFine()">+ Fine</button>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-danger btn-sm" onclick="openManualFine()">+ Fine</button>
+        ${fines.length>0?`<button class="btn btn-gray btn-sm" onclick="clearAllFines()" style="background:#7f1d1d;color:#fff;">🗑 Clear All</button>`:''}
+      </div>
     </div>
     <div class="stats-row">
       <div class="stat red"><div class="stat-label">Total Fines</div><div class="stat-value">${fines.length}</div></div>
@@ -2010,16 +2264,33 @@ async function renderFinesTab(){
     ${sorted.length===0?'<div class="empty"><div style="font-size:28px">✅</div><div>No fines recorded</div></div>':''}
     ${sorted.map(f=>{
       const mem=members.find(x=>x.code===f.memberCode);
-      return`<div class="card">
+      return`<div class="card" style="border-left:3px solid var(--red)">
         <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div>
+          <div style="flex:1;min-width:0">
             <div style="font-weight:700;font-size:13px">${mem?mem.name:f.memberCode}</div>
             <div style="font-size:11px;color:var(--muted);margin-top:2px">${f.date} · ${f.reason}</div>
             <span style="font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700;${f.auto?'background:#fee2e2;color:#b91c1c':'background:#e0f0ff;color:#1a3a8f'}">${f.auto?'AUTO':'MANUAL'}</span>
           </div>
-          <div class="neg mono" style="font-size:15px">₦${f.amount.toLocaleString()}</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:8px">
+            <div class="neg mono" style="font-size:15px">₦${f.amount.toLocaleString()}</div>
+            <button onclick="removeFine('${f.id}')" style="background:#fee2e2;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:13px;color:#b91c1c;font-weight:700;" title="Remove fine">✕</button>
+          </div>
         </div>
       </div>`;}).join('')}`;
+}
+
+async function removeFine(id){
+  if(!confirm('Remove this fine? This cannot be undone.'))return;
+  let fines=await getFines();
+  fines=fines.filter(f=>f.id!==id);
+  await saveFines(fines);
+  renderTab('fines');
+}
+
+async function clearAllFines(){
+  if(!confirm('⚠️ Clear ALL fines? This will permanently delete every fine record.'))return;
+  await saveFines([]);
+  renderTab('fines');
 }
 
 async function openManualFine(){
@@ -2092,33 +2363,166 @@ function previewScreenshot(input){
 }
 
 async function submitOrder(){
-  const g=id=>document.getElementById(id)?.value||'';
-  const name=g('or_name').trim(),phone=g('or_phone').trim(),email=g('or_email').trim();
-  const state=g('or_state').trim(),sitename=g('or_sitename').trim();
-  const source=g('or_source'),ref=g('or_ref').trim(),payref=g('or_payref').trim();
-  const err=el('orderErr'),ok=el('orderOk');
-  err.classList.add('hidden');ok.classList.add('hidden');
-  const payrefText = (document.getElementById('or_payref_text')?.value||'').trim();
-  const payrefFinal = payref || payrefText || 'Screenshot uploaded';
+  const g=id=>(document.getElementById(id)?.value||'').trim();
+  const name=g('or_name'),phone=g('or_phone'),email=g('or_email');
+  const state=g('or_state'),sitename=g('or_sitename');
+  const source=g('or_source'),ref=g('or_ref').toUpperCase();
+  const payref=document.getElementById('or_payref')?.value||'';
+  const errEl=document.getElementById('orderErr');
+  const okEl=document.getElementById('orderOk');
+  const screenshotReqEl=document.getElementById('screenshotRequired');
+  if(errEl)errEl.style.display='none';
+  if(okEl)okEl.style.display='none';
+  if(screenshotReqEl)screenshotReqEl.style.display='none';
   if(!name||!phone||!email||!sitename){
-    err.textContent='Please fill Name, Phone, Email and Site Name.';
-    err.classList.remove('hidden');return;}
-  if(!payref && !payrefText){
-    err.textContent='Please upload a payment screenshot or enter a reference.';
-    err.classList.remove('hidden');return;}
+    if(errEl){errEl.textContent='Please fill in your Name, Phone, Email, and Site Name.';errEl.style.display='block';}
+    return;
+  }
+  if(!payref){
+    if(screenshotReqEl)screenshotReqEl.style.display='block';
+    if(errEl){errEl.textContent='Please upload your payment screenshot.';errEl.style.display='block';}
+    return;
+  }
+
+  // Find ambassador and build upline chain
+  const members=await getMembers();
+  const amb=ref?members.find(m=>m.code===ref):null;
+  let treeChain=[];
+  if(amb){
+    let current=amb;
+    treeChain.push({code:current.code,role:current.role,name:current.name,email:current.email||''});
+    while(current.uplineCode){
+      const up=members.find(m=>m.code===current.uplineCode);
+      if(!up)break;
+      treeChain.push({code:up.code,role:up.role,name:up.name,email:up.email||''});
+      current=up;
+    }
+  }
+
+  const hasScreenshot=payref.startsWith('data:image')||payref.startsWith('data:application');
+  const orderId='O_'+Date.now();
+  const newOrder={
+    id:orderId,name,phone,email,state,sitename,source,
+    ref:ref||'',ambassadorCode:amb?amb.code:'',
+    treeChain,
+    payref:'[Screenshot attached]',
+    screenshot:hasScreenshot?payref:null,
+    date:today(),status:'Pending',
+    time:new Date().toLocaleTimeString(),
+    approved:false,commissionPaid:false
+  };
+
   const orders=await getOrders();
-  const hasScreenshot = payref && payref.startsWith('data:image');
-  orders.unshift({id:'O_'+Date.now(),name,phone,email,state,sitename,source,ref,
-    payref: hasScreenshot ? '[Screenshot uploaded]' : payrefFinal,
-    screenshot: hasScreenshot ? payref : null,
-    date:today(),status:'Pending',time:new Date().toLocaleTimeString()});
+  orders.unshift(newOrder);
   await saveOrders(orders);
-  ok.textContent='✅ Order submitted! We will contact you within 48 hours. Payment reference: '+payref;
-  ok.classList.remove('hidden');
-  sendEmail('rehovtu@gmail.com','RehoVTU','🆕 New VTU Site Order — '+name,
-    '<p><b>Name:</b> '+name+'<br><b>Phone:</b> '+phone+'<br><b>Email:</b> '+email+'<br><b>State:</b> '+state+'<br><b>Site Name:</b> '+sitename+'<br><b>Source:</b> '+source+'<br><b>Referred By:</b> '+(ref||'Direct')+'<br><b>Payment:</b> '+(payref.startsWith('data:image')?'Screenshot uploaded':payrefFinal)+'</p>');
-  sendEmail(email,name,'✅ Your RehoVTU Site Order Received!',
-    '<p>Hi '+name+',</p><p>We received your order for <b>'+sitename+'</b>. Your site will be ready within 48 hours.</p><p>Payment reference: <b>'+payref+'</b></p><p>We will contact you on <b>'+phone+'</b> once it is ready.</p><p>RehoVTU Team</p>');
+
+  // In-app notification to whole chain
+  if(treeChain.length>0){
+    const notifMsg=name+' placed a VTU site order through your link! Awaiting founder approval to release your commission.';
+    await addNotification(treeChain.map(t=>t.code),notifMsg,'order',orderId);
+  }
+
+  // Build screenshot HTML block for emails
+  const screenshotBlock=hasScreenshot
+    ?`<div style="margin:14px 0;"><p style="font-weight:700;color:#0d1b2a;margin:0 0 6px;">📎 Payment Screenshot</p><img src="${payref}" style="max-width:100%;border-radius:8px;border:1px solid #e2e8f0;" alt="Payment Receipt"></div>`
+    :'<p style="color:#64748b;font-size:13px;">No screenshot attached.</p>';
+
+  // Build order detail block (reused in multiple emails)
+  const orderDetails=`
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin:12px 0;">
+      <tr><td style="padding:6px 0;color:#64748b;width:120px;">Customer</td><td style="padding:6px 0;font-weight:600;color:#0d1b2a;">${name}</td></tr>
+      <tr style="background:#f8fafc;"><td style="padding:6px 8px;color:#64748b;">Phone</td><td style="padding:6px 8px;font-weight:600;">${phone}</td></tr>
+      <tr><td style="padding:6px 0;color:#64748b;">Email</td><td style="padding:6px 0;font-weight:600;">${email}</td></tr>
+      <tr style="background:#f8fafc;"><td style="padding:6px 8px;color:#64748b;">State</td><td style="padding:6px 8px;font-weight:600;">${state||'—'}</td></tr>
+      <tr><td style="padding:6px 0;color:#64748b;">Site Name</td><td style="padding:6px 0;font-weight:600;">${sitename}</td></tr>
+      <tr style="background:#f8fafc;"><td style="padding:6px 8px;color:#64748b;">Source</td><td style="padding:6px 8px;font-weight:600;">${source||'—'}</td></tr>
+      <tr><td style="padding:6px 0;color:#64748b;">Date</td><td style="padding:6px 0;font-weight:600;">${today()}</td></tr>
+      <tr style="background:#f8fafc;"><td style="padding:6px 8px;color:#64748b;">Order ID</td><td style="padding:6px 8px;font-family:monospace;font-size:11px;">${orderId}</td></tr>
+    </table>`;
+
+  const emailHeader=`<div style="font-family:sans-serif;max-width:520px;margin:0 auto;">
+    <div style="background:#0d1b2a;padding:18px 24px;text-align:center;border-radius:12px 12px 0 0;">
+      <div style="font-size:24px;font-weight:900;color:#fff;">Reho<span style="color:#e8a020;">VTU</span></div>
+    </div>`;
+  const emailFooter=`<p style="font-size:11px;color:#94a3b8;margin-top:16px;">Questions? <a href="mailto:rehovtuedu@gmail.com" style="color:#1a3a8f;">rehovtuedu@gmail.com</a> · 09037066499</p></div></div>`;
+
+  // 1. Customer confirmation email
+  const customerHtml=emailHeader+
+    `<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">
+      <h2 style="color:#0d1b2a;margin:0 0 12px;">✅ Order Received — Payment Acknowledged</h2>
+      <p style="color:#334155;line-height:1.7;">Hi <b>${name}</b>, thank you for choosing <b>RehoVTU!</b></p>
+      <p style="color:#334155;line-height:1.7;">Your order for <b>${sitename}</b> has been received. Your payment screenshot is under review.</p>
+      <div style="background:#f0fdf4;border-radius:10px;padding:14px;margin:14px 0;border-left:4px solid #1a6b3c;">
+        <p style="margin:0 0 8px;font-weight:700;color:#1a6b3c;">📋 What Happens Next</p>
+        <p style="margin:4px 0;font-size:13px;">✅ Payment confirmed within a few hours</p>
+        <p style="margin:4px 0;font-size:13px;">🔨 Your VTU site built within <b>48 hours</b></p>
+        <p style="margin:4px 0;font-size:13px;">📧 Login details sent to <b>${email}</b></p>
+        <p style="margin:4px 0;font-size:13px;">📞 We will call/WhatsApp <b>${phone}</b></p>
+      </div>
+      ${orderDetails}
+    `+emailFooter;
+
+  sendEmail(email,name,'✅ Order Received — Your RehoVTU Site is Being Set Up',customerHtml);
+
+  // 2. Founder notification with full order details + screenshot
+  const treeStr=treeChain.length>0?treeChain.map(t=>`${t.name} (${t.code} · ${ROLES[t.role]||t.role})`).join(' → '):'Direct / No referral';
+  const founderHtml=emailHeader+
+    `<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">
+      <h2 style="color:#0d1b2a;margin:0 0 4px;">🆕 New Site Order: ${name}</h2>
+      <p style="color:#64748b;font-size:13px;margin:0 0 14px;">Site name: <b>${sitename}</b></p>
+      ${orderDetails}
+      <div style="background:#f8fafc;border-radius:8px;padding:10px 12px;margin-bottom:12px;">
+        <p style="margin:0 0 4px;font-weight:700;font-size:12px;color:#64748b;text-transform:uppercase;">Commission Chain</p>
+        <p style="margin:0;font-size:13px;color:#0d1b2a;">${treeStr}</p>
+      </div>
+      ${screenshotBlock}
+      <div style="background:#fef3dc;border-radius:8px;padding:12px;margin-top:12px;">
+        <p style="margin:0;font-weight:700;color:#92600a;">⚡ Action Required</p>
+        <p style="margin:6px 0 0;font-size:13px;color:#92600a;">Log in to your dashboard and approve this order to release commissions to the ambassador chain.</p>
+      </div>
+      <p style="margin-top:14px;"><a href="https://rehovtuca.github.io" style="background:#1a3a8f;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;">Open Dashboard →</a></p>
+    `+emailFooter;
+
+  sendEmail('rehovtuedu@gmail.com','RehoVTU Team','🆕 New Site Order: '+name+' — '+sitename,founderHtml);
+
+  // 3. Email each upline member in the chain
+  const commissionMap={ambassador:600,cc:200,pm:100,pfc:50};
+  for(const member of treeChain){
+    if(!member.email||member.role==='founder')continue;
+    const commission=commissionMap[member.role]||0;
+    const roleLabel=ROLES[member.role]||member.role;
+    const uplineHtml=emailHeader+
+      `<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">
+        <h2 style="color:#0d1b2a;margin:0 0 4px;">💰 New Order Via Your Link!</h2>
+        <p style="color:#64748b;font-size:13px;margin:0 0 14px;">Hi <b>${member.name}</b> (${roleLabel})</p>
+        <div style="background:#f0fdf4;border-radius:10px;padding:14px;margin-bottom:14px;border-left:4px solid #1a6b3c;">
+          <p style="margin:0 0 4px;font-weight:700;color:#1a6b3c;">🎉 Someone ordered via your chain!</p>
+          <p style="margin:0;font-size:13px;color:#334155;"><b>${name}</b> just placed a VTU site order. Once the founder approves, <b>₦${commission.toLocaleString()}</b> will be added to your commission balance.</p>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr><td style="padding:5px 0;color:#64748b;width:100px;">Customer</td><td style="padding:5px 0;font-weight:600;">${name}</td></tr>
+          <tr style="background:#f8fafc;"><td style="padding:5px 8px;color:#64748b;">Phone</td><td style="padding:5px 8px;font-weight:600;">${phone}</td></tr>
+          <tr><td style="padding:5px 0;color:#64748b;">State</td><td style="padding:5px 0;font-weight:600;">${state||'—'}</td></tr>
+          <tr style="background:#f8fafc;"><td style="padding:5px 8px;color:#64748b;">Site Name</td><td style="padding:5px 8px;font-weight:600;">${sitename}</td></tr>
+          <tr><td style="padding:5px 0;color:#64748b;">Your Commission</td><td style="padding:5px 0;font-weight:700;color:#1a6b3c;">₦${commission.toLocaleString()} (pending approval)</td></tr>
+        </table>
+        <p style="font-size:12px;color:#64748b;margin-top:14px;">Log in to your RehoVTU dashboard to track your commissions.</p>
+        <p><a href="https://rehovtuca.github.io" style="background:#1a3a8f;color:#fff;padding:9px 18px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;font-size:13px;">View My Dashboard →</a></p>
+      `+emailFooter;
+    sendEmail(member.email,member.name,'💰 New Site Order via Your Link — ₦'+commission.toLocaleString()+' Pending',uplineHtml);
+  }
+
+  if(okEl){
+    okEl.textContent='✅ Order submitted! Check your email ('+email+') for confirmation. Your site will be ready within 48 hours.';
+    okEl.style.display='block';
+  }
+  // Clear form
+  ['or_name','or_phone','or_email','or_state','or_sitename','or_ref'].forEach(id=>{
+    const el2=document.getElementById(id);if(el2)el2.value='';
+  });
+  const prv=document.getElementById('screenshotPreview');
+  if(prv)prv.innerHTML='📸 Tap to upload payment screenshot<br><span style="font-size:11px;">(JPG, PNG accepted)</span>';
+  const prf=document.getElementById('or_payref');if(prf)prf.value='';
 }
 
 async function exportOrders(){
@@ -2179,8 +2583,9 @@ async function renderOrdersTab(){
             👤 Referred by: ${o.ref.toUpperCase()}${referrer?' — '+referrer.name:''}
           </div>`:'<div style="grid-column:1/-1;color:var(--muted);">Direct (no referral)</div>'}
         </div>
-        <div style="display:flex;gap:7px;">
-          <button class="btn btn-primary btn-sm" style="flex:1" onclick="openSiteDelivery('${o.id}')">📤 Send Site Details</button>
+        <div style="display:flex;gap:7px;flex-wrap:wrap;">
+          ${!o.approved?`<button class="btn btn-success btn-sm" style="flex:1" onclick="approveOrder('${o.id}')">✅ Approve & Count</button>`:'<span style="font-size:11px;color:var(--green);font-weight:700;padding:6px;">✅ Approved '+( o.approvedDate||'')+'</span>'}
+          <button class="btn btn-primary btn-sm" style="flex:1" onclick="openSiteDelivery('${o.id}')">📤 Send Details</button>
           ${o.siteLink?`<button class="btn btn-gray btn-sm" onclick="openSiteDelivery('${o.id}')">✏️ Resend</button>`:''}
         </div>
         ${o.siteLink?`<div style="margin-top:6px;font-size:11px;background:var(--green-light);color:var(--green);padding:5px 9px;border-radius:6px;">✅ Site delivered: <a href="${o.siteLink}" target="_blank" style="color:var(--green);">${o.siteLink}</a></div>`:''}
@@ -2284,7 +2689,7 @@ async function sendSiteDetails(orderId){
         🎯 Target: Get 100+ people to sign up through your link this month
       </div>
     </div>
-    <p style="font-size:12px;color:#64748b;">Questions? Contact us: <a href="mailto:rehovtu@gmail.com">rehovtu@gmail.com</a> · 09037066499</p>
+    <p style="font-size:12px;color:#64748b;">Questions? Contact us: <a href="mailto:rehovtuedu@gmail.com">rehovtuedu@gmail.com</a> · 09037066499</p>
     <p style="font-size:13px;font-weight:700;color:#0d1b2a;">Thank you for choosing RehoVTU 💛</p>
   </div>
 </div>`;
@@ -2387,11 +2792,161 @@ async function forceSync(){
   renderTab('dashboard');
 }
 
+// ═══ NOTIFICATION SYSTEM ═══
+async function getNotifications(memberCode){
+  const all = LS.get('notifs_'+memberCode) || [];
+  try{
+    const remote = await FB.get('notifs_'+memberCode);
+    if(remote && remote.length > 0){
+      LS.set('notifs_'+memberCode, remote);
+      return remote;
+    }
+  }catch{}
+  return all;
+}
+
+async function saveNotifications(memberCode, notifs){
+  LS.set('notifs_'+memberCode, notifs);
+  try{ await FB.set('notifs_'+memberCode, notifs); }catch{}
+}
+
+async function addNotification(memberCodes, message, type, refId){
+  // Add notification to each member in the list
+  for(const code of memberCodes){
+    const notifs = await getNotifications(code);
+    notifs.unshift({
+      id:'N_'+Date.now()+Math.random(),
+      message, type: type||'info', refId: refId||'',
+      date: today(), time: new Date().toLocaleTimeString(),
+      read: false
+    });
+    await saveNotifications(code, notifs.slice(0, 50)); // keep last 50
+  }
+}
+
+async function markNotifsRead(memberCode){
+  const notifs = await getNotifications(memberCode);
+  notifs.forEach(n=>n.read=true);
+  await saveNotifications(memberCode, notifs);
+}
+
+async function showNotifs(){
+  const notifs = await getNotifications(currentUser.code);
+  const unread = notifs.filter(n=>!n.read).length;
+  await markNotifsRead(currentUser.code);
+  updateBellBadge(0);
+
+  const typeIcon = {order:'🛒', info:'ℹ️', fine:'⚠️', report:'📑', signup:'🎉', system:'📢'};
+
+  openSheet(
+    '<div class="sheet-title">🔔 Notifications <button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>'+
+    (notifs.length===0
+      ? '<div class="empty"><div style="font-size:28px">🔔</div><div>No notifications yet</div></div>'
+      : notifs.map(n=>'<div style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);background:'+(n.read?'transparent':'#f0f7ff')+'">'+
+          '<span style="font-size:20px;flex-shrink:0;">'+(typeIcon[n.type]||'📢')+'</span>'+
+          '<div style="flex:1"><div style="font-size:13px;font-weight:'+(n.read?'400':'700')+';">'+n.message+'</div>'+
+          '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+n.date+' · '+n.time+'</div></div>'+
+        '</div>').join('')
+    )
+  );
+}
+
+async function updateBellBadge(count){
+  const bell = document.getElementById('bellBtn');
+  if(!bell) return;
+  const badge = document.getElementById('bellBadge');
+  if(count > 0){
+    if(!badge){
+      const b = document.createElement('span');
+      b.id='bellBadge';
+      b.style.cssText='position:absolute;top:-4px;right:-4px;background:#b91c1c;color:#fff;font-size:9px;font-weight:700;border-radius:50%;width:16px;height:16px;display:flex;align-items:center;justify-content:center;';
+      b.textContent=count>9?'9+':count;
+      bell.style.position='relative';
+      bell.appendChild(b);
+    } else {
+      badge.textContent=count>9?'9+':count;
+    }
+  } else {
+    if(badge) badge.remove();
+  }
+}
+
+async function loadBellCount(){
+  try{
+    const notifs = await getNotifications(currentUser.code);
+    const unread = notifs.filter(n=>!n.read).length;
+    updateBellBadge(unread);
+  }catch{}
+}
+
+async function approveOrder(orderId){
+  if(!confirm('Approve this order? This will count as a sign-up for the ambassador and their upline chain.')) return;
+  const [orders, members, signups] = await Promise.all([getOrders(), getMembers(), getSignups()]);
+  const idx = orders.findIndex(o=>o.id===orderId);
+  if(idx<0){alert('Order not found');return;}
+  const order = orders[idx];
+  if(order.approved){alert('Already approved.');return;}
+
+  orders[idx].approved = true;
+  orders[idx].status = 'Approved';
+  orders[idx].approvedDate = today();
+  await saveOrders(orders);
+
+  // Add as a sign-up so commission calculator picks it up
+  if(order.ambassadorCode){
+    const newSig = {
+      id:'SIG_'+orderId, customerName:order.name,
+      amount:2000, package:'VTU Site',
+      state:order.state||'', ambassadorCode:order.ambassadorCode,
+      date:order.date, note:'Site order — approved by founder',
+      recordedBy:'FOUNDER', fromOrder:true
+    };
+    signups.unshift(newSig);
+    await saveSignups(signups);
+
+    // Notify entire chain that commission is approved
+    if(order.treeChain && order.treeChain.length>0){
+      const chain = order.treeChain;
+      const msgs = {
+        ambassador: order.name+' site order APPROVED! ₦600 commission added to your account.',
+        cc: order.name+' site order approved — ₦200 commission added via your ambassador '+order.ambassadorCode,
+        pm: order.name+' site order approved — ₦100 added to your state commission.',
+        pfc: order.name+' site order approved — ₦50 added to your network commission.',
+        founder: 'Site order for '+order.name+' approved.'
+      };
+      for(const member of chain){
+        const msg = msgs[member.role] || 'Order approved: '+order.name;
+        await addNotification([member.code], msg, 'signup', orderId);
+      }
+    }
+  }
+
+  renderTab('orders');
+  alert('✅ Order approved! Commission has been allocated to the ambassador chain.');
+}
+
 (async()=>{
+  // Read URL params for referral links: ?ref=CODE&join=ROLE
+  const urlParams=new URLSearchParams(location.search);
+  const refCode=urlParams.get('ref');
+  const joinRole=urlParams.get('join');
+  if(refCode){
+    _pendingRefCode=refCode.toUpperCase();
+  }
+  if(joinRole&&['ambassador','cc','pm','pfc'].includes(joinRole.toLowerCase())){
+    _pendingJoinRole=joinRole.toLowerCase();
+  }
+
   // Show login screen immediately so page is never blank
   el('loginScreen').classList.remove('hidden');
   el('appScreen').classList.add('hidden');
-  showLanding();
+
+  // If opened via referral join link, go straight to register tab
+  if(_pendingRefCode&&_pendingJoinRole){
+    showLoginCard('register');
+  } else {
+    showLanding();
+  }
 
   await initData();
   await syncFromFirebase();
