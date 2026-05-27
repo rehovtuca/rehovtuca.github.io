@@ -406,6 +406,12 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
       <div id="orderOk" class="alert alert-success hidden"></div>
       <div class="fg"><label class="fl">Full Name</label><input class="fi" id="or_name" placeholder="Your full name"></div>
       <div class="fg"><label class="fl">Phone Number</label><input class="fi" id="or_phone" type="tel" placeholder="08012345678"></div>
+      <div class="fg"><label class="fl">WhatsApp Number</label><input class="fi" id="or_whatsapp" type="tel" placeholder="Same as phone? Enter it again or use different number"></div>
+      <div class="fg">
+        <label class="fl">Desired 4-Digit PIN</label>
+        <input class="fi" id="or_pin" type="password" inputmode="numeric" maxlength="4" placeholder="e.g. 1234 — you'll use this to log into your site" oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,4)">
+        <div style="font-size:11px;color:#64748b;margin-top:3px;">⚠️ Remember this PIN — it's how you'll log into your VTU dashboard</div>
+      </div>
       <div class="fg"><label class="fl">Email Address</label><input class="fi" id="or_email" type="email" placeholder="your@email.com"></div>
       <div class="fg"><label class="fl">State</label><input class="fi" id="or_state" placeholder="e.g. Lagos"></div>
       <div class="fg"><label class="fl">Preferred Site Name</label><input class="fi" id="or_sitename" placeholder="e.g. John VTU, Kemi Data Hub"></div>
@@ -2365,6 +2371,7 @@ function previewScreenshot(input){
 async function submitOrder(){
   const g=id=>(document.getElementById(id)?.value||'').trim();
   const name=g('or_name'),phone=g('or_phone'),email=g('or_email');
+  const whatsapp=g('or_whatsapp'),pin=g('or_pin');
   const state=g('or_state'),sitename=g('or_sitename');
   const source=g('or_source'),ref=g('or_ref').toUpperCase();
   const payref=document.getElementById('or_payref')?.value||'';
@@ -2374,8 +2381,18 @@ async function submitOrder(){
   if(errEl)errEl.style.display='none';
   if(okEl)okEl.style.display='none';
   if(screenshotReqEl)screenshotReqEl.style.display='none';
+
+  // Validation
   if(!name||!phone||!email||!sitename){
     if(errEl){errEl.textContent='Please fill in your Name, Phone, Email, and Site Name.';errEl.style.display='block';}
+    return;
+  }
+  if(!whatsapp){
+    if(errEl){errEl.textContent='Please enter your WhatsApp number.';errEl.style.display='block';}
+    return;
+  }
+  if(!pin||pin.length!==4||!/^\d{4}$/.test(pin)){
+    if(errEl){errEl.textContent='Please enter a valid 4-digit PIN (numbers only).';errEl.style.display='block';}
     return;
   }
   if(!payref){
@@ -2402,7 +2419,7 @@ async function submitOrder(){
   const hasScreenshot=payref.startsWith('data:image')||payref.startsWith('data:application');
   const orderId='O_'+Date.now();
   const newOrder={
-    id:orderId,name,phone,email,state,sitename,source,
+    id:orderId,name,phone,whatsapp,pin,email,state,sitename,source,
     ref:ref||'',ambassadorCode:amb?amb.code:'',
     treeChain,
     payref:'[Screenshot attached]',
@@ -2422,28 +2439,27 @@ async function submitOrder(){
     await addNotification(treeChain.map(t=>t.code),notifMsg,'order',orderId);
   }
 
-  // Build screenshot HTML block for emails
+  // Build screenshot HTML block
   const screenshotBlock=hasScreenshot
     ?`<div style="margin:14px 0;"><p style="font-weight:700;color:#0d1b2a;margin:0 0 6px;">📎 Payment Screenshot</p><img src="${payref}" style="max-width:100%;border-radius:8px;border:1px solid #e2e8f0;" alt="Payment Receipt"></div>`
     :'<p style="color:#64748b;font-size:13px;">No screenshot attached.</p>';
 
-  // Build order detail block (reused in multiple emails)
+  // Order details table — used in founder & upline emails
   const orderDetails=`
     <table style="width:100%;border-collapse:collapse;font-size:13px;margin:12px 0;">
       <tr><td style="padding:6px 0;color:#64748b;width:120px;">Customer</td><td style="padding:6px 0;font-weight:600;color:#0d1b2a;">${name}</td></tr>
       <tr style="background:#f8fafc;"><td style="padding:6px 8px;color:#64748b;">Phone</td><td style="padding:6px 8px;font-weight:600;">${phone}</td></tr>
-      <tr><td style="padding:6px 0;color:#64748b;">Email</td><td style="padding:6px 0;font-weight:600;">${email}</td></tr>
-      <tr style="background:#f8fafc;"><td style="padding:6px 8px;color:#64748b;">State</td><td style="padding:6px 8px;font-weight:600;">${state||'—'}</td></tr>
-      <tr><td style="padding:6px 0;color:#64748b;">Site Name</td><td style="padding:6px 0;font-weight:600;">${sitename}</td></tr>
-      <tr style="background:#f8fafc;"><td style="padding:6px 8px;color:#64748b;">Source</td><td style="padding:6px 8px;font-weight:600;">${source||'—'}</td></tr>
+      <tr><td style="padding:6px 0;color:#64748b;">WhatsApp</td><td style="padding:6px 0;font-weight:600;">${whatsapp}</td></tr>
+      <tr style="background:#f8fafc;"><td style="padding:6px 8px;color:#64748b;">Email</td><td style="padding:6px 8px;font-weight:600;">${email}</td></tr>
+      <tr><td style="padding:6px 0;color:#64748b;">State</td><td style="padding:6px 0;font-weight:600;">${state||'—'}</td></tr>
+      <tr style="background:#f8fafc;"><td style="padding:6px 8px;color:#64748b;">Site Name</td><td style="padding:6px 8px;font-weight:600;">${sitename}</td></tr>
+      <tr><td style="padding:6px 0;color:#64748b;">Source</td><td style="padding:6px 0;font-weight:600;">${source||'—'}</td></tr>
+      <tr style="background:#f8fafc;"><td style="padding:6px 8px;color:#64748b;">Desired PIN</td><td style="padding:6px 8px;font-weight:700;font-family:monospace;color:#1a3a8f;font-size:15px;">${pin}</td></tr>
       <tr><td style="padding:6px 0;color:#64748b;">Date</td><td style="padding:6px 0;font-weight:600;">${today()}</td></tr>
       <tr style="background:#f8fafc;"><td style="padding:6px 8px;color:#64748b;">Order ID</td><td style="padding:6px 8px;font-family:monospace;font-size:11px;">${orderId}</td></tr>
     </table>`;
 
-  const emailHeader=`<div style="font-family:sans-serif;max-width:520px;margin:0 auto;">
-    <div style="background:#0d1b2a;padding:18px 24px;text-align:center;border-radius:12px 12px 0 0;">
-      <div style="font-size:24px;font-weight:900;color:#fff;">Reho<span style="color:#e8a020;">VTU</span></div>
-    </div>`;
+  const emailHeader=`<div style="font-family:sans-serif;max-width:520px;margin:0 auto;"><div style="background:#0d1b2a;padding:18px 24px;text-align:center;border-radius:12px 12px 0 0;"><div style="font-size:24px;font-weight:900;color:#fff;">Reho<span style="color:#e8a020;">VTU</span></div></div>`;
   const emailFooter=`<p style="font-size:11px;color:#94a3b8;margin-top:16px;">Questions? <a href="mailto:rehovtuedu@gmail.com" style="color:#1a3a8f;">rehovtuedu@gmail.com</a> · 09037066499</p></div></div>`;
 
   // 1. Customer confirmation email
@@ -2457,14 +2473,20 @@ async function submitOrder(){
         <p style="margin:4px 0;font-size:13px;">✅ Payment confirmed within a few hours</p>
         <p style="margin:4px 0;font-size:13px;">🔨 Your VTU site built within <b>48 hours</b></p>
         <p style="margin:4px 0;font-size:13px;">📧 Login details sent to <b>${email}</b></p>
-        <p style="margin:4px 0;font-size:13px;">📞 We will call/WhatsApp <b>${phone}</b></p>
+        <p style="margin:4px 0;font-size:13px;">📞 We will call/WhatsApp <b>${whatsapp}</b></p>
       </div>
-      ${orderDetails}
+      <div style="background:#fef3dc;border-radius:10px;padding:14px;margin:14px 0;border-left:4px solid #e8a020;">
+        <p style="margin:0 0 6px;font-weight:700;color:#92600a;">🔐 Your Order Summary</p>
+        <p style="margin:3px 0;font-size:13px;color:#334155;">Site Name: <b>${sitename}</b></p>
+        <p style="margin:3px 0;font-size:13px;color:#334155;">WhatsApp: <b>${whatsapp}</b></p>
+        <p style="margin:3px 0;font-size:13px;color:#334155;">Your PIN: <b style="font-family:monospace;font-size:15px;color:#1a3a8f;">${pin}</b></p>
+        <p style="margin:6px 0 0;font-size:11px;color:#92600a;">Keep your PIN safe — you will use it to log into your VTU dashboard.</p>
+      </div>
     `+emailFooter;
 
   sendEmail(email,name,'✅ Order Received — Your RehoVTU Site is Being Set Up',customerHtml);
 
-  // 2. Founder notification with full order details + screenshot
+  // 2. Founder email — full details + screenshot
   const treeStr=treeChain.length>0?treeChain.map(t=>`${t.name} (${t.code} · ${ROLES[t.role]||t.role})`).join(' → '):'Direct / No referral';
   const founderHtml=emailHeader+
     `<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">
@@ -2485,7 +2507,7 @@ async function submitOrder(){
 
   sendEmail('rehovtuedu@gmail.com','RehoVTU Team','🆕 New Site Order: '+name+' — '+sitename,founderHtml);
 
-  // 3. Email each upline member in the chain
+  // 3. Email each upline in the chain
   const commissionMap={ambassador:600,cc:200,pm:100,pfc:50};
   for(const member of treeChain){
     if(!member.email||member.role==='founder')continue;
@@ -2502,9 +2524,10 @@ async function submitOrder(){
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
           <tr><td style="padding:5px 0;color:#64748b;width:100px;">Customer</td><td style="padding:5px 0;font-weight:600;">${name}</td></tr>
           <tr style="background:#f8fafc;"><td style="padding:5px 8px;color:#64748b;">Phone</td><td style="padding:5px 8px;font-weight:600;">${phone}</td></tr>
-          <tr><td style="padding:5px 0;color:#64748b;">State</td><td style="padding:5px 0;font-weight:600;">${state||'—'}</td></tr>
-          <tr style="background:#f8fafc;"><td style="padding:5px 8px;color:#64748b;">Site Name</td><td style="padding:5px 8px;font-weight:600;">${sitename}</td></tr>
-          <tr><td style="padding:5px 0;color:#64748b;">Your Commission</td><td style="padding:5px 0;font-weight:700;color:#1a6b3c;">₦${commission.toLocaleString()} (pending approval)</td></tr>
+          <tr><td style="padding:5px 0;color:#64748b;">WhatsApp</td><td style="padding:5px 0;font-weight:600;">${whatsapp}</td></tr>
+          <tr style="background:#f8fafc;"><td style="padding:5px 8px;color:#64748b;">State</td><td style="padding:5px 8px;font-weight:600;">${state||'—'}</td></tr>
+          <tr><td style="padding:5px 0;color:#64748b;">Site Name</td><td style="padding:5px 0;font-weight:600;">${sitename}</td></tr>
+          <tr style="background:#f8fafc;"><td style="padding:5px 8px;color:#64748b;">Your Commission</td><td style="padding:5px 8px;font-weight:700;color:#1a6b3c;">₦${commission.toLocaleString()} (pending approval)</td></tr>
         </table>
         <p style="font-size:12px;color:#64748b;margin-top:14px;">Log in to your RehoVTU dashboard to track your commissions.</p>
         <p><a href="https://rehovtuca.github.io" style="background:#1a3a8f;color:#fff;padding:9px 18px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;font-size:13px;">View My Dashboard →</a></p>
@@ -2517,7 +2540,7 @@ async function submitOrder(){
     okEl.style.display='block';
   }
   // Clear form
-  ['or_name','or_phone','or_email','or_state','or_sitename','or_ref'].forEach(id=>{
+  ['or_name','or_phone','or_whatsapp','or_pin','or_email','or_state','or_sitename','or_ref'].forEach(id=>{
     const el2=document.getElementById(id);if(el2)el2.value='';
   });
   const prv=document.getElementById('screenshotPreview');
