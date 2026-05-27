@@ -403,7 +403,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
     </div>
     <div class="card">
       <div id="orderErr" class="alert alert-error hidden"></div>
-      <div id="orderOk" class="alert alert-success hidden"></div>
+      <div id="orderOk" style="display:none;background:#d4f0e0;border:1px solid #1a6b3c;border-radius:10px;padding:16px;margin-bottom:12px;"></div>
       <div class="fg"><label class="fl">Full Name</label><input class="fi" id="or_name" placeholder="Your full name"></div>
       <div class="fg"><label class="fl">Phone Number</label><input class="fi" id="or_phone" type="tel" placeholder="08012345678"></div>
       <div class="fg"><label class="fl">WhatsApp Number</label><input class="fi" id="or_whatsapp" type="tel" placeholder="Same as phone? Enter it again or use different number"></div>
@@ -551,7 +551,7 @@ async function sendEmail(to,toName,subject,html){
     await fetch('https://api.brevo.com/v3/smtp/email',{
       method:'POST',
       headers:{'accept':'application/json','api-key':_bk,'content-type':'application/json'},
-      body:JSON.stringify({sender:{name:'RehoVTU',email:'rehovtuedu@gmail.com'},to:[{email:to,name:toName}],subject,htmlContent:html})
+      body:JSON.stringify({sender:{name:'RehoVTU',email:'rehovtu@gmail.com'},to:[{email:to,name:toName}],subject,htmlContent:html})
     });
   }catch{}
 }
@@ -874,10 +874,10 @@ async function doRegister(){
 
   const roleLabel=ROLES[role]||role;
   const regHeader=`<div style="font-family:sans-serif;max-width:520px;margin:0 auto;"><div style="background:#0d1b2a;padding:18px 24px;text-align:center;border-radius:12px 12px 0 0;"><div style="font-size:24px;font-weight:900;color:#fff;">Reho<span style="color:#e8a020;">VTU</span></div></div>`;
-  const regFooter=`<p style="font-size:11px;color:#94a3b8;margin-top:16px;">Questions? <a href="mailto:rehovtuedu@gmail.com" style="color:#1a3a8f;">rehovtuedu@gmail.com</a> · 09037066499</p></div></div>`;
+  const regFooter=`<p style="font-size:11px;color:#94a3b8;margin-top:16px;">Questions? <a href="mailto:rehovtu@gmail.com" style="color:#1a3a8f;">rehovtu@gmail.com</a> · 09037066499</p></div></div>`;
 
   // Email founder
-  sendEmail('rehovtuedu@gmail.com','RehoVTU Team','🆕 New Team Member: '+name+' ('+code+')',
+  sendEmail('rehovtu@gmail.com','RehoVTU Team','🆕 New Team Member: '+name+' ('+code+')',
     regHeader+`<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">
       <h2 style="color:#0d1b2a;margin:0 0 12px;">🆕 New Team Member Registered</h2>
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
@@ -1485,10 +1485,10 @@ async function submitSignup(){
   }
 
   const sigHeader=`<div style="font-family:sans-serif;max-width:520px;margin:0 auto;"><div style="background:#0d1b2a;padding:18px 24px;text-align:center;border-radius:12px 12px 0 0;"><div style="font-size:24px;font-weight:900;color:#fff;">Reho<span style="color:#e8a020;">VTU</span></div></div>`;
-  const sigFooter=`<p style="font-size:11px;color:#94a3b8;margin-top:16px;">Questions? <a href="mailto:rehovtuedu@gmail.com" style="color:#1a3a8f;">rehovtuedu@gmail.com</a> · 09037066499</p></div></div>`;
+  const sigFooter=`<p style="font-size:11px;color:#94a3b8;margin-top:16px;">Questions? <a href="mailto:rehovtu@gmail.com" style="color:#1a3a8f;">rehovtu@gmail.com</a> · 09037066499</p></div></div>`;
 
   // Email founder
-  sendEmail('rehovtuedu@gmail.com','RehoVTU Team','🎉 New Sign-up: '+customerName,
+  sendEmail('rehovtu@gmail.com','RehoVTU Team','🎉 New Sign-up: '+customerName,
     sigHeader+`<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">
       <h2 style="color:#0d1b2a;margin:0 0 12px;">🎉 New Customer Sign-up Recorded</h2>
       <table style="width:100%;border-collapse:collapse;font-size:13px;">
@@ -2418,12 +2418,16 @@ async function submitOrder(){
 
   const hasScreenshot=payref.startsWith('data:image')||payref.startsWith('data:application');
   const orderId='O_'+Date.now();
+
+  // IMPORTANT: Never store the base64 screenshot in the order object.
+  // It can be 500KB+ and will silently fail when saving to Firebase (1MB doc limit).
+  // Screenshot is sent via email only.
   const newOrder={
     id:orderId,name,phone,whatsapp,pin,email,state,sitename,source,
     ref:ref||'',ambassadorCode:amb?amb.code:'',
     treeChain,
-    payref:'[Screenshot attached]',
-    screenshot:hasScreenshot?payref:null,
+    payref:hasScreenshot?'[Screenshot emailed]':'[No screenshot]',
+    screenshot:null, // never stored - emailed instead
     date:today(),status:'Pending',
     time:new Date().toLocaleTimeString(),
     approved:false,commissionPaid:false
@@ -2439,113 +2443,225 @@ async function submitOrder(){
     await addNotification(treeChain.map(t=>t.code),notifMsg,'order',orderId);
   }
 
-  // Build screenshot HTML block
+  // Build screenshot HTML block — for founder email only
   const screenshotBlock=hasScreenshot
-    ?`<div style="margin:14px 0;"><p style="font-weight:700;color:#0d1b2a;margin:0 0 6px;">📎 Payment Screenshot</p><img src="${payref}" style="max-width:100%;border-radius:8px;border:1px solid #e2e8f0;" alt="Payment Receipt"></div>`
-    :'<p style="color:#64748b;font-size:13px;">No screenshot attached.</p>';
+    ?`<div style="margin:20px 0 0;">
+        <p style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin:0 0 8px;">Payment Screenshot</p>
+        <img src="${payref}" style="max-width:100%;border-radius:8px;border:1px solid #e2e8f0;display:block;" alt="Payment Receipt">
+      </div>`
+    :`<p style="color:#94a3b8;font-size:13px;font-style:italic;">No screenshot attached.</p>`;
 
-  // Order details table — used in founder & upline emails
-  const orderDetails=`
-    <table style="width:100%;border-collapse:collapse;font-size:13px;margin:12px 0;">
-      <tr><td style="padding:6px 0;color:#64748b;width:120px;">Customer</td><td style="padding:6px 0;font-weight:600;color:#0d1b2a;">${name}</td></tr>
-      <tr style="background:#f8fafc;"><td style="padding:6px 8px;color:#64748b;">Phone</td><td style="padding:6px 8px;font-weight:600;">${phone}</td></tr>
-      <tr><td style="padding:6px 0;color:#64748b;">WhatsApp</td><td style="padding:6px 0;font-weight:600;">${whatsapp}</td></tr>
-      <tr style="background:#f8fafc;"><td style="padding:6px 8px;color:#64748b;">Email</td><td style="padding:6px 8px;font-weight:600;">${email}</td></tr>
-      <tr><td style="padding:6px 0;color:#64748b;">State</td><td style="padding:6px 0;font-weight:600;">${state||'—'}</td></tr>
-      <tr style="background:#f8fafc;"><td style="padding:6px 8px;color:#64748b;">Site Name</td><td style="padding:6px 8px;font-weight:600;">${sitename}</td></tr>
-      <tr><td style="padding:6px 0;color:#64748b;">Source</td><td style="padding:6px 0;font-weight:600;">${source||'—'}</td></tr>
-      <tr style="background:#f8fafc;"><td style="padding:6px 8px;color:#64748b;">Desired PIN</td><td style="padding:6px 8px;font-weight:700;font-family:monospace;color:#1a3a8f;font-size:15px;">${pin}</td></tr>
-      <tr><td style="padding:6px 0;color:#64748b;">Date</td><td style="padding:6px 0;font-weight:600;">${today()}</td></tr>
-      <tr style="background:#f8fafc;"><td style="padding:6px 8px;color:#64748b;">Order ID</td><td style="padding:6px 8px;font-family:monospace;font-size:11px;">${orderId}</td></tr>
+  // ─── Shared email components ───────────────────────────────────────────────
+  const brand=`
+    <div style="background:#0d1b2a;padding:24px 32px;text-align:center;">
+      <div style="display:inline-flex;align-items:center;gap:6px;">
+        <div style="width:8px;height:8px;background:#e8a020;border-radius:50%;"></div>
+        <div style="font-size:22px;font-weight:900;color:#fff;letter-spacing:-0.5px;">Reho<span style="color:#e8a020;">VTU</span></div>
+        <div style="width:8px;height:8px;background:#e8a020;border-radius:50%;"></div>
+      </div>
+      <div style="font-size:10px;color:rgba(255,255,255,0.4);letter-spacing:2px;text-transform:uppercase;margin-top:4px;">Virtual Top-Up Solutions</div>
+    </div>`;
+
+  const footer=`
+    <div style="background:#f8fafc;padding:20px 32px;border-top:1px solid #e2e8f0;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div style="font-size:11px;color:#94a3b8;">© ${new Date().getFullYear()} RehoVTU. All rights reserved.</div>
+        <div style="font-size:11px;color:#94a3b8;"><a href="mailto:rehovtu@gmail.com" style="color:#1a3a8f;text-decoration:none;">rehovtu@gmail.com</a> &nbsp;·&nbsp; 09037066499</div>
+      </div>
+    </div>`;
+
+  const wrap=(content)=>`
+    <div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#f1f5f9;padding:32px 16px;">
+      <div style="max-width:540px;margin:0 auto;border-radius:16px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,0.10);">
+        ${brand}
+        ${content}
+        ${footer}
+      </div>
+    </div>`;
+
+  const detailRow=(label,value,shade)=>
+    `<tr style="background:${shade?'#f8fafc':'#fff'};">
+      <td style="padding:10px 16px;font-size:12px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;width:130px;border-bottom:1px solid #f1f5f9;">${label}</td>
+      <td style="padding:10px 16px;font-size:13px;color:#0f172a;font-weight:600;border-bottom:1px solid #f1f5f9;">${value}</td>
+    </tr>`;
+
+  const detailTable=(...rows)=>
+    `<table style="width:100%;border-collapse:collapse;border-radius:10px;overflow:hidden;border:1px solid #e2e8f0;margin:16px 0;">
+      ${rows.map((r,i)=>detailRow(r[0],r[1],i%2===1)).join('')}
     </table>`;
 
-  const emailHeader=`<div style="font-family:sans-serif;max-width:520px;margin:0 auto;"><div style="background:#0d1b2a;padding:18px 24px;text-align:center;border-radius:12px 12px 0 0;"><div style="font-size:24px;font-weight:900;color:#fff;">Reho<span style="color:#e8a020;">VTU</span></div></div>`;
-  const emailFooter=`<p style="font-size:11px;color:#94a3b8;margin-top:16px;">Questions? <a href="mailto:rehovtuedu@gmail.com" style="color:#1a3a8f;">rehovtuedu@gmail.com</a> · 09037066499</p></div></div>`;
+  const badge=(text,color,bg)=>
+    `<span style="display:inline-block;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700;color:${color};background:${bg};letter-spacing:0.5px;">${text}</span>`;
 
-  // 1. Customer confirmation email
-  const customerHtml=emailHeader+
-    `<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">
-      <h2 style="color:#0d1b2a;margin:0 0 12px;">✅ Order Received — Payment Acknowledged</h2>
-      <p style="color:#334155;line-height:1.7;">Hi <b>${name}</b>, thank you for choosing <b>RehoVTU!</b></p>
-      <p style="color:#334155;line-height:1.7;">Your order for <b>${sitename}</b> has been received. Your payment screenshot is under review.</p>
-      <div style="background:#f0fdf4;border-radius:10px;padding:14px;margin:14px 0;border-left:4px solid #1a6b3c;">
-        <p style="margin:0 0 8px;font-weight:700;color:#1a6b3c;">📋 What Happens Next</p>
-        <p style="margin:4px 0;font-size:13px;">✅ Payment confirmed within a few hours</p>
-        <p style="margin:4px 0;font-size:13px;">🔨 Your VTU site built within <b>48 hours</b></p>
-        <p style="margin:4px 0;font-size:13px;">📧 Login details sent to <b>${email}</b></p>
-        <p style="margin:4px 0;font-size:13px;">📞 We will call/WhatsApp <b>${whatsapp}</b></p>
+  // ─── 1. Customer confirmation email ────────────────────────────────────────
+  const customerBody=`
+    <div style="background:#fff;padding:32px;">
+      <div style="margin-bottom:24px;">
+        <div style="font-size:11px;font-weight:700;color:#e8a020;text-transform:uppercase;letter-spacing:2px;margin-bottom:8px;">Order Confirmed</div>
+        <h1 style="font-size:24px;font-weight:900;color:#0d1b2a;margin:0 0 8px;line-height:1.2;">Your site is in the works, ${name.split(' ')[0]}.</h1>
+        <p style="font-size:14px;color:#64748b;line-height:1.6;margin:0;">Payment received. Your RehoVTU website will be ready within <strong>48 hours</strong>.</p>
       </div>
-      <div style="background:#fef3dc;border-radius:10px;padding:14px;margin:14px 0;border-left:4px solid #e8a020;">
-        <p style="margin:0 0 6px;font-weight:700;color:#92600a;">🔐 Your Order Summary</p>
-        <p style="margin:3px 0;font-size:13px;color:#334155;">Site Name: <b>${sitename}</b></p>
-        <p style="margin:3px 0;font-size:13px;color:#334155;">WhatsApp: <b>${whatsapp}</b></p>
-        <p style="margin:3px 0;font-size:13px;color:#334155;">Your PIN: <b style="font-family:monospace;font-size:15px;color:#1a3a8f;">${pin}</b></p>
-        <p style="margin:6px 0 0;font-size:11px;color:#92600a;">Keep your PIN safe — you will use it to log into your VTU dashboard.</p>
-      </div>
-    `+emailFooter;
 
-  sendEmail(email,name,'✅ Order Received — Your RehoVTU Site is Being Set Up',customerHtml);
-
-  // 2. Founder email — full details + screenshot
-  const treeStr=treeChain.length>0?treeChain.map(t=>`${t.name} (${t.code} · ${ROLES[t.role]||t.role})`).join(' → '):'Direct / No referral';
-  const founderHtml=emailHeader+
-    `<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">
-      <h2 style="color:#0d1b2a;margin:0 0 4px;">🆕 New Site Order: ${name}</h2>
-      <p style="color:#64748b;font-size:13px;margin:0 0 14px;">Site name: <b>${sitename}</b></p>
-      ${orderDetails}
-      <div style="background:#f8fafc;border-radius:8px;padding:10px 12px;margin-bottom:12px;">
-        <p style="margin:0 0 4px;font-weight:700;font-size:12px;color:#64748b;text-transform:uppercase;">Commission Chain</p>
-        <p style="margin:0;font-size:13px;color:#0d1b2a;">${treeStr}</p>
+      <div style="background:#0d1b2a;border-radius:12px;padding:20px 24px;margin-bottom:24px;">
+        <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:2px;margin-bottom:12px;">Your Order Details</div>
+        <div style="display:grid;gap:8px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:12px;color:rgba(255,255,255,0.5);">Site Name</span>
+            <span style="font-size:14px;font-weight:700;color:#e8a020;">${sitename}</span>
+          </div>
+          <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:8px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:12px;color:rgba(255,255,255,0.5);">WhatsApp</span>
+            <span style="font-size:13px;font-weight:600;color:#fff;">${whatsapp}</span>
+          </div>
+          <div style="border-top:1px solid rgba(255,255,255,0.08);padding-top:8px;display:flex;justify-content:space-between;align-items:center;">
+            <span style="font-size:12px;color:rgba(255,255,255,0.5);">Your PIN</span>
+            <span style="font-size:20px;font-weight:900;color:#e8a020;font-family:monospace;letter-spacing:4px;">${pin}</span>
+          </div>
+        </div>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.08);">
+          <p style="font-size:11px;color:rgba(255,255,255,0.35);margin:0;">⚠️ Save your PIN — you will need it to access your VTU dashboard.</p>
+        </div>
       </div>
+
+      <div style="border:1px solid #e2e8f0;border-radius:12px;padding:20px 24px;margin-bottom:24px;">
+        <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:14px;">What Happens Next</div>
+        <div style="display:grid;gap:12px;">
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <div style="min-width:28px;height:28px;background:#f0fdf4;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;">✅</div>
+            <div><div style="font-size:13px;font-weight:700;color:#0d1b2a;">Payment review</div><div style="font-size:12px;color:#64748b;margin-top:2px;">Your screenshot is being verified within a few hours.</div></div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <div style="min-width:28px;height:28px;background:#fef3dc;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;">🔨</div>
+            <div><div style="font-size:13px;font-weight:700;color:#0d1b2a;">Site development</div><div style="font-size:12px;color:#64748b;margin-top:2px;">Your VTU site is built and configured within <strong>48 hours</strong>.</div></div>
+          </div>
+          <div style="display:flex;gap:12px;align-items:flex-start;">
+            <div style="min-width:28px;height:28px;background:#e0f0ff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;">📧</div>
+            <div><div style="font-size:13px;font-weight:700;color:#0d1b2a;">Delivery</div><div style="font-size:12px;color:#64748b;margin-top:2px;">Login details sent to <strong>${email}</strong> and via WhatsApp to <strong>${whatsapp}</strong>.</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="text-align:center;padding:8px 0;">
+        <p style="font-size:13px;color:#64748b;margin:0 0 4px;">Order reference: <span style="font-family:monospace;font-size:11px;background:#f1f5f9;padding:2px 8px;border-radius:4px;">${orderId}</span></p>
+        <p style="font-size:12px;color:#94a3b8;margin:8px 0 0;">Questions? Reply to this email or WhatsApp us on <strong>09037066499</strong></p>
+      </div>
+    </div>`;
+
+  sendEmail(email, name, `Order Confirmed — ${sitename} | RehoVTU`, wrap(customerBody));
+
+  // ─── 2. Founder email ───────────────────────────────────────────────────────
+  const treeStr=treeChain.length>0
+    ?treeChain.map(t=>`<span style="display:inline-block;background:#1a3a8f;color:#fff;font-size:11px;padding:2px 8px;border-radius:4px;margin:2px;">${t.name} · ${ROLES[t.role]||t.role}</span>`).join(' <span style="color:#94a3b8;">→</span> ')
+    :'<span style="color:#94a3b8;font-style:italic;">Direct / No referral</span>';
+
+  const founderBody=`
+    <div style="background:#fff;padding:32px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px;flex-wrap:wrap;gap:8px;">
+        <div>
+          <div style="font-size:11px;font-weight:700;color:#e8a020;text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;">New Order — Action Required</div>
+          <h1 style="font-size:22px;font-weight:900;color:#0d1b2a;margin:0;">${name}</h1>
+          <p style="font-size:13px;color:#64748b;margin:4px 0 0;">Site: <strong>${sitename}</strong> &nbsp;·&nbsp; ${today()}</p>
+        </div>
+        ${badge('PENDING APPROVAL','#92600a','#fef3dc')}
+      </div>
+
+      ${detailTable(
+        ['Full Name', name],
+        ['Phone', phone],
+        ['WhatsApp', whatsapp],
+        ['Email', email],
+        ['State', state||'—'],
+        ['Site Name', sitename],
+        ['Source', source||'—'],
+        ['Desired PIN', `<span style="font-family:monospace;font-size:18px;font-weight:900;color:#1a3a8f;letter-spacing:4px;">${pin}</span>`],
+        ['Referral Code', ref||'—'],
+        ['Order ID', `<span style="font-family:monospace;font-size:11px;">${orderId}</span>`]
+      )}
+
+      <div style="background:#f8fafc;border-radius:10px;padding:16px 20px;margin-bottom:20px;">
+        <div style="font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px;">Commission Chain</div>
+        <div style="line-height:1.8;">${treeStr}</div>
+      </div>
+
       ${screenshotBlock}
-      <div style="background:#fef3dc;border-radius:8px;padding:12px;margin-top:12px;">
-        <p style="margin:0;font-weight:700;color:#92600a;">⚡ Action Required</p>
-        <p style="margin:6px 0 0;font-size:13px;color:#92600a;">Log in to your dashboard and approve this order to release commissions to the ambassador chain.</p>
+
+      <div style="background:#0d1b2a;border-radius:12px;padding:20px 24px;margin-top:20px;">
+        <div style="font-size:13px;font-weight:700;color:#e8a020;margin-bottom:8px;">⚡ Action Required</div>
+        <p style="font-size:13px;color:rgba(255,255,255,0.75);line-height:1.6;margin:0 0 16px;">Log into your dashboard to approve this order and release commissions to the ambassador chain.</p>
+        <a href="https://rehovtuca.github.io" style="display:inline-block;background:#e8a020;color:#0d1b2a;padding:11px 24px;border-radius:8px;font-size:13px;font-weight:800;text-decoration:none;letter-spacing:0.3px;">Open Dashboard →</a>
       </div>
-      <p style="margin-top:14px;"><a href="https://rehovtuca.github.io" style="background:#1a3a8f;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;">Open Dashboard →</a></p>
-    `+emailFooter;
+    </div>`;
 
-  sendEmail('rehovtuedu@gmail.com','RehoVTU Team','🆕 New Site Order: '+name+' — '+sitename,founderHtml);
+  sendEmail('rehovtu@gmail.com', 'RehoVTU Team', `🆕 New Order: ${name} — ${sitename}`, wrap(founderBody));
 
-  // 3. Email each upline in the chain
+  // ─── 3. Upline chain emails ─────────────────────────────────────────────────
   const commissionMap={ambassador:600,cc:200,pm:100,pfc:50};
   for(const member of treeChain){
     if(!member.email||member.role==='founder')continue;
     const commission=commissionMap[member.role]||0;
     const roleLabel=ROLES[member.role]||member.role;
-    const uplineHtml=emailHeader+
-      `<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">
-        <h2 style="color:#0d1b2a;margin:0 0 4px;">💰 New Order Via Your Link!</h2>
-        <p style="color:#64748b;font-size:13px;margin:0 0 14px;">Hi <b>${member.name}</b> (${roleLabel})</p>
-        <div style="background:#f0fdf4;border-radius:10px;padding:14px;margin-bottom:14px;border-left:4px solid #1a6b3c;">
-          <p style="margin:0 0 4px;font-weight:700;color:#1a6b3c;">🎉 Someone ordered via your chain!</p>
-          <p style="margin:0;font-size:13px;color:#334155;"><b>${name}</b> just placed a VTU site order. Once the founder approves, <b>₦${commission.toLocaleString()}</b> will be added to your commission balance.</p>
+    const uplineBody=`
+      <div style="background:#fff;padding:32px;">
+        <div style="margin-bottom:20px;">
+          <div style="font-size:11px;font-weight:700;color:#e8a020;text-transform:uppercase;letter-spacing:2px;margin-bottom:6px;">New Order via Your Network</div>
+          <h1 style="font-size:22px;font-weight:900;color:#0d1b2a;margin:0 0 4px;">Commission Pending</h1>
+          <p style="font-size:13px;color:#64748b;margin:0;">Hi <strong>${member.name.split(' ')[0]}</strong> (${roleLabel})</p>
         </div>
-        <table style="width:100%;border-collapse:collapse;font-size:13px;">
-          <tr><td style="padding:5px 0;color:#64748b;width:100px;">Customer</td><td style="padding:5px 0;font-weight:600;">${name}</td></tr>
-          <tr style="background:#f8fafc;"><td style="padding:5px 8px;color:#64748b;">Phone</td><td style="padding:5px 8px;font-weight:600;">${phone}</td></tr>
-          <tr><td style="padding:5px 0;color:#64748b;">WhatsApp</td><td style="padding:5px 0;font-weight:600;">${whatsapp}</td></tr>
-          <tr style="background:#f8fafc;"><td style="padding:5px 8px;color:#64748b;">State</td><td style="padding:5px 8px;font-weight:600;">${state||'—'}</td></tr>
-          <tr><td style="padding:5px 0;color:#64748b;">Site Name</td><td style="padding:5px 0;font-weight:600;">${sitename}</td></tr>
-          <tr style="background:#f8fafc;"><td style="padding:5px 8px;color:#64748b;">Your Commission</td><td style="padding:5px 8px;font-weight:700;color:#1a6b3c;">₦${commission.toLocaleString()} (pending approval)</td></tr>
-        </table>
-        <p style="font-size:12px;color:#64748b;margin-top:14px;">Log in to your RehoVTU dashboard to track your commissions.</p>
-        <p><a href="https://rehovtuca.github.io" style="background:#1a3a8f;color:#fff;padding:9px 18px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;font-size:13px;">View My Dashboard →</a></p>
-      `+emailFooter;
-    sendEmail(member.email,member.name,'💰 New Site Order via Your Link — ₦'+commission.toLocaleString()+' Pending',uplineHtml);
+
+        <div style="background:#0d1b2a;border-radius:12px;padding:20px 24px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Your Commission</div>
+            <div style="font-size:32px;font-weight:900;color:#e8a020;">₦${commission.toLocaleString()}</div>
+            <div style="font-size:11px;color:rgba(255,255,255,0.4);margin-top:2px;">Pending founder approval</div>
+          </div>
+          <div style="font-size:40px;">💰</div>
+        </div>
+
+        ${detailTable(
+          ['Customer', name],
+          ['Phone', phone],
+          ['WhatsApp', whatsapp],
+          ['State', state||'—'],
+          ['Site Name', sitename],
+          ['Order Date', today()]
+        )}
+
+        <a href="https://rehovtuca.github.io" style="display:block;text-align:center;background:#1a3a8f;color:#fff;padding:13px 24px;border-radius:10px;font-size:14px;font-weight:700;text-decoration:none;letter-spacing:0.3px;">View My Dashboard →</a>
+      </div>`;
+    sendEmail(member.email, member.name, `₦${commission.toLocaleString()} Commission Pending — New Order via Your Link`, wrap(uplineBody));
   }
 
-  if(okEl){
-    okEl.textContent='✅ Order submitted! Check your email ('+email+') for confirmation. Your site will be ready within 48 hours.';
-    okEl.style.display='block';
+  // ─── Show thank-you dialog (full page replacement on order form) ────────────
+  const orderFormPage=document.getElementById('orderFormPage');
+  if(orderFormPage){
+    orderFormPage.innerHTML=`
+      <div style="min-height:100vh;background:#0d1b2a;display:flex;align-items:center;justify-content:center;padding:32px 20px;">
+        <div style="max-width:400px;width:100%;text-align:center;">
+          <div style="font-size:64px;margin-bottom:16px;">🎉</div>
+          <div style="font-size:11px;font-weight:700;color:#e8a020;text-transform:uppercase;letter-spacing:2px;margin-bottom:12px;">Payment Received</div>
+          <h2 style="font-size:26px;font-weight:900;color:#fff;margin:0 0 12px;line-height:1.2;">Thank you,<br>${name.split(' ')[0]}!</h2>
+          <p style="font-size:14px;color:rgba(255,255,255,0.65);line-height:1.7;margin:0 0 24px;">We have received your payment and order details.<br>Your <strong style="color:#e8a020;">${sitename}</strong> VTU site will be ready within <strong style="color:#fff;">2 working days</strong>.</p>
+
+          <div style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.1);border-radius:12px;padding:18px 20px;margin-bottom:24px;text-align:left;">
+            <div style="font-size:10px;font-weight:700;color:rgba(255,255,255,0.35);text-transform:uppercase;letter-spacing:2px;margin-bottom:12px;">What to Expect</div>
+            <div style="display:flex;gap:10px;margin-bottom:10px;">
+              <span style="font-size:15px;">📧</span>
+              <span style="font-size:13px;color:rgba(255,255,255,0.75);">Check <strong style="color:#fff;">${email}</strong> within 48 hours for your login details.</span>
+            </div>
+            <div style="display:flex;gap:10px;margin-bottom:10px;">
+              <span style="font-size:15px;">📱</span>
+              <span style="font-size:13px;color:rgba(255,255,255,0.75);">We'll also WhatsApp you on <strong style="color:#fff;">${whatsapp}</strong>.</span>
+            </div>
+            <div style="display:flex;gap:10px;">
+              <span style="font-size:15px;">🔐</span>
+              <span style="font-size:13px;color:rgba(255,255,255,0.75);">Your PIN is <strong style="color:#e8a020;font-family:monospace;font-size:16px;letter-spacing:3px;">${pin}</strong> — save it!</span>
+            </div>
+          </div>
+
+          <p style="font-size:12px;color:rgba(255,255,255,0.3);margin:0;">Questions? WhatsApp <strong style="color:rgba(255,255,255,0.5);">09037066499</strong></p>
+        </div>
+      </div>`;
   }
-  // Clear form
-  ['or_name','or_phone','or_whatsapp','or_pin','or_email','or_state','or_sitename','or_ref'].forEach(id=>{
-    const el2=document.getElementById(id);if(el2)el2.value='';
-  });
-  const prv=document.getElementById('screenshotPreview');
-  if(prv)prv.innerHTML='📸 Tap to upload payment screenshot<br><span style="font-size:11px;">(JPG, PNG accepted)</span>';
-  const prf=document.getElementById('or_payref');if(prf)prf.value='';
 }
 
 async function exportOrders(){
@@ -2712,7 +2828,7 @@ async function sendSiteDetails(orderId){
         🎯 Target: Get 100+ people to sign up through your link this month
       </div>
     </div>
-    <p style="font-size:12px;color:#64748b;">Questions? Contact us: <a href="mailto:rehovtuedu@gmail.com">rehovtuedu@gmail.com</a> · 09037066499</p>
+    <p style="font-size:12px;color:#64748b;">Questions? Contact us: <a href="mailto:rehovtu@gmail.com">rehovtu@gmail.com</a> · 09037066499</p>
     <p style="font-size:13px;font-weight:700;color:#0d1b2a;">Thank you for choosing RehoVTU 💛</p>
   </div>
 </div>`;
