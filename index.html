@@ -519,6 +519,9 @@ const LS={
   set(k,v){try{localStorage.setItem('rv2_'+k,JSON.stringify(v));}catch{}}
 };
 
+// Global orders cache — keeps rendered orders in sync with button actions
+let _ordersCache = null;
+
 // Merge: write to both Firebase + LS; read from LS first then Firebase
 async function dbGet(k){
   const cached=LS.get(k);
@@ -2316,24 +2319,24 @@ async function getOrders(){
   try{
     const remote = await FB.get('orders');
     if(remote !== null && remote !== undefined){
-      // Firebase responded successfully (even if empty array)
       const remoteArr = Array.isArray(remote) ? remote : [];
       const remoteIds = new Set(remoteArr.map(o=>o.id));
       const localOnly = local.filter(o=>!remoteIds.has(o.id));
       const merged = [...localOnly, ...remoteArr].sort((a,b)=>(b.id||'').localeCompare(a.id||''));
       LS.set('orders', merged);
+      _ordersCache = merged;
       if(localOnly.length > 0) FB.set('orders', merged);
       return merged;
     }
-    // Firebase returned null = document doesn't exist yet; push local to Firebase
     if(local.length > 0){ FB.set('orders', local); }
   }catch(e){ console.warn('getOrders Firebase error:', e); }
+  _ordersCache = local;
   return local;
 }
 async function saveOrders(o){
-  // Strip any leftover screenshot data before saving (prevents Firebase 1MB limit failure)
   const clean = o.map(ord=>({...ord, screenshot:null}));
   LS.set('orders', clean);
+  _ordersCache = clean;
   try{
     await FB.set('orders', clean);
     console.log('✅ Orders saved to Firebase. Count:', clean.length);
@@ -2788,11 +2791,24 @@ async function renderOrdersTab(){
         +refLine
       +'</div>'
       +'<div>'+actionBtns+'</div>'
+      +'<div style="margin-top:8px;text-align:right;"><button class="btn btn-sm" style="background:#fee2e2;color:#b91c1c;border:none;font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;font-weight:700;" onclick="deleteOrder(\''+o.id+'\')" >🗑 Delete Order</button></div>'
       +'</div>';
   }
   return html;
 }
 
+
+async function deleteOrder(orderId){
+  if(!confirm('⚠️ Delete this order permanently?\n\nThis cannot be undone.')) return;
+  const orders = _ordersCache && _ordersCache.length > 0 ? [..._ordersCache] : await getOrders();
+  const idx = orders.findIndex(o=>o.id===orderId);
+  if(idx<0){alert('Order not found. Refresh and try again.');return;}
+  const name = orders[idx].name || 'this order';
+  orders.splice(idx,1);
+  await saveOrders(orders);
+  renderTab('orders');
+  alert('🗑 Order for '+name+' deleted.');
+}
 
 async function openSiteDelivery(orderId){
   const orders=await getOrders();
@@ -3207,9 +3223,9 @@ async function loadBellCount(){
 // STAGE 1: Founder confirms payment is received (no commission yet)
 async function approvePayment(orderId){
   if(!confirm('Confirm payment received for this order? This does NOT release commission yet — commission is only released when you mark the site as built.')) return;
-  const orders = await getOrders();
+  const orders = _ordersCache && _ordersCache.length > 0 ? [..._ordersCache] : await getOrders();
   const idx = orders.findIndex(o=>o.id===orderId);
-  if(idx<0){alert('Order not found');return;}
+  if(idx<0){alert('Order not found. Please refresh the Orders tab and try again.');return;}
   if(orders[idx].paymentConfirmed){alert('Payment already confirmed.');return;}
   orders[idx].paymentConfirmed = true;
   orders[idx].paymentConfirmedDate = today();
@@ -3229,9 +3245,10 @@ async function approvePayment(orderId){
 // STAGE 2: Founder marks site as built and releases commission
 async function approveOrder(orderId){
   if(!confirm('Mark this site as BUILT and release commission to the team?\n\nThis will count the sign-up and credit the full commission chain. This cannot be undone.')) return;
-  const [orders, members, signups] = await Promise.all([getOrders(), getMembers(), getSignups()]);
+  const [freshOrders, members, signups] = await Promise.all([getOrders(), getMembers(), getSignups()]);
+  const orders = freshOrders;
   const idx = orders.findIndex(o=>o.id===orderId);
-  if(idx<0){alert('Order not found');return;}
+  if(idx<0){alert('Order not found. Please refresh the Orders tab and try again.');return;}
   const order = orders[idx];
   if(order.approved){alert('Commission already released for this order.');return;}
   if(!order.paymentConfirmed){
