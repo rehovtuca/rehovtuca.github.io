@@ -2895,22 +2895,135 @@ async function updateOrderStatus(id,status){
 
 function renderAdminTools(){
   const html = '<div class="sec-title">Admin Tools</div>' +
+
+    '<div class="card" style="border-left:4px solid var(--gold);margin-bottom:10px;">' +
+      '<div style="font-weight:700;margin-bottom:4px;font-size:14px;">📡 Firebase Orders Sync</div>' +
+      '<div style="font-size:12px;color:var(--gray);margin-bottom:10px;">If the Orders tab is blank, tap this first. It initialises the orders storage in Firebase so customer orders can save properly.</div>' +
+      '<div id="fbInitResult" style="margin-bottom:8px;"></div>' +
+      '<button class="btn btn-gold btn-full" onclick="initOrdersInFirebase()">🔧 Fix Orders Storage Now</button>' +
+    '</div>' +
+
+    '<div class="card" style="border-left:4px solid var(--green);margin-bottom:10px;">' +
+      '<div style="font-weight:700;margin-bottom:4px;font-size:14px;">✍️ Add Order Manually</div>' +
+      '<div style="font-size:12px;color:var(--gray);margin-bottom:10px;">Use this when a customer submits via WhatsApp/call and it doesn\'t appear in the Orders tab.</div>' +
+      '<button class="btn btn-success btn-full" onclick="openManualOrder()">+ Add Order Manually</button>' +
+    '</div>' +
+
     '<div class="card" style="border-left:4px solid var(--red);margin-bottom:10px;">' +
       '<div style="font-weight:700;margin-bottom:6px;font-size:14px;">🔧 Fix Duplicate Member Codes</div>' +
-      '<div style="font-size:12px;color:var(--gray);margin-bottom:10px;">Scans all members for duplicate codes and reassigns unique codes. Also fixes codes with wrong role prefix.</div>' +
+      '<div style="font-size:12px;color:var(--gray);margin-bottom:10px;">Scans all members for duplicate codes and reassigns unique codes.</div>' +
       '<div id="fixResult" style="margin-bottom:10px;"></div>' +
       '<button class="btn btn-danger btn-full" onclick="fixDuplicateCodes()">Run Fix Now</button>' +
     '</div>' +
+
     '<div class="card" style="border-left:4px solid var(--blue);margin-bottom:10px;">' +
       '<div style="font-weight:700;margin-bottom:6px;font-size:14px;">👁 View All Members</div>' +
       '<button class="btn btn-primary btn-full" onclick="viewAllMembers()">Load All Members</button>' +
       '<div id="allMembersResult" style="margin-top:10px;"></div>' +
     '</div>' +
+
     '<div class="card" style="border-left:4px solid var(--gold);">' +
       '<div style="font-weight:700;margin-bottom:6px;font-size:14px;">🔄 Force Sync from Firebase</div>' +
       '<button class="btn btn-gold btn-full" onclick="forceSync()">Force Sync Now</button>' +
     '</div>';
   return html;
+}
+
+async function initOrdersInFirebase(){
+  const res = document.getElementById('fbInitResult');
+  res.innerHTML = '<div class="alert alert-info">Connecting to Firebase…</div>';
+  try{
+    // Read existing orders first
+    let existing = await FB.get('orders');
+    if(!existing) existing = [];
+    // Write back - this creates the document if it doesn't exist
+    await FB.set('orders', existing);
+    // Verify it worked
+    const verify = await FB.get('orders');
+    if(verify !== null){
+      res.innerHTML = `<div class="alert alert-success">✅ Firebase orders storage is working! Found ${verify.length} order(s). Go to the Orders tab now.</div>`;
+      LS.set('orders', verify);
+    } else {
+      res.innerHTML = '<div class="alert alert-error">⚠️ Still unable to connect. Check your internet connection and try again.</div>';
+    }
+  }catch(e){
+    res.innerHTML = '<div class="alert alert-error">❌ Error: '+e.message+'</div>';
+  }
+}
+
+async function openManualOrder(){
+  const members = await getMembers();
+  const ambList = members.filter(m=>m.role==='ambassador');
+  openSheet(`
+    <div class="sheet-title">✍️ Add Order Manually<button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>
+    <div class="alert alert-info" style="font-size:12px;margin-bottom:12px;">Use this for orders received via WhatsApp or phone call.</div>
+    <div class="fg"><label class="fl">Full Name</label><input class="fi" id="mo_name" placeholder="Customer full name"></div>
+    <div class="fg"><label class="fl">Phone</label><input class="fi" id="mo_phone" type="tel" placeholder="08012345678"></div>
+    <div class="fg"><label class="fl">WhatsApp</label><input class="fi" id="mo_whatsapp" type="tel" placeholder="WhatsApp number"></div>
+    <div class="fg"><label class="fl">Email</label><input class="fi" id="mo_email" type="email" placeholder="customer@email.com"></div>
+    <div class="fg"><label class="fl">State</label><input class="fi" id="mo_state" placeholder="e.g. Lagos"></div>
+    <div class="fg"><label class="fl">Site Name</label><input class="fi" id="mo_sitename" placeholder="e.g. Kemi Data Hub"></div>
+    <div class="fg"><label class="fl">Desired PIN</label><input class="fi" id="mo_pin" maxlength="4" placeholder="4-digit PIN"></div>
+    <div class="fg"><label class="fl">Referred By (Ambassador Code)</label>
+      <select class="fsl" id="mo_ref">
+        <option value="">Direct (no referral)</option>
+        ${ambList.map(m=>`<option value="${m.code}">${m.name} (${m.code})</option>`).join('')}
+      </select>
+    </div>
+    <div class="fg"><label class="fl">Payment Status</label>
+      <select class="fsl" id="mo_payment">
+        <option value="pending">Pending — not yet confirmed</option>
+        <option value="confirmed">Confirmed — payment received</option>
+      </select>
+    </div>
+    <div id="moErr" class="alert alert-error hidden"></div>
+    <button class="btn btn-success btn-full" onclick="submitManualOrder()">Save Order</button>
+  `);
+}
+
+async function submitManualOrder(){
+  const g = id => (document.getElementById(id)?.value||'').trim();
+  const name=g('mo_name'), phone=g('mo_phone'), email=g('mo_email'), sitename=g('mo_sitename');
+  const errEl = document.getElementById('moErr');
+  if(!name||!phone||!sitename){
+    errEl.textContent='Name, Phone and Site Name are required.';
+    errEl.classList.remove('hidden');return;
+  }
+  const ref = g('mo_ref').toUpperCase();
+  const members = await getMembers();
+  const amb = ref ? members.find(m=>m.code===ref) : null;
+  let treeChain = [];
+  if(amb){
+    let cur = amb;
+    treeChain.push({code:cur.code,role:cur.role,name:cur.name,email:cur.email||''});
+    while(cur.uplineCode){
+      const up = members.find(m=>m.code===cur.uplineCode);
+      if(!up)break;
+      treeChain.push({code:up.code,role:up.role,name:up.name,email:up.email||''});
+      cur = up;
+    }
+  }
+  const paymentConfirmed = document.getElementById('mo_payment')?.value === 'confirmed';
+  const orderId = 'O_'+Date.now();
+  const newOrder = {
+    id:orderId, name, phone,
+    whatsapp:g('mo_whatsapp')||phone,
+    email, state:g('mo_state'),
+    sitename, pin:g('mo_pin'),
+    ref:ref||'', ambassadorCode:amb?amb.code:'',
+    treeChain, payref:'[Manual entry]',
+    screenshot:null, source:'Manual',
+    date:today(), time:new Date().toLocaleTimeString(),
+    status:paymentConfirmed?'Building':'Pending',
+    paymentConfirmed, paymentConfirmedDate:paymentConfirmed?today():null,
+    approved:false, commissionPaid:false
+  };
+  const orders = await getOrders();
+  orders.unshift(newOrder);
+  await saveOrders(orders);
+  closeSheet();
+  renderTab('orders');
+  alert('✅ Order added! Check the Orders tab.');
 }
 
 
