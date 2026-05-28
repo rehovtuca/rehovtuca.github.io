@@ -89,6 +89,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
 .sheet-title{font-size:15px;font-weight:700;margin-bottom:14px;color:var(--navy);display:flex;align-items:center;justify-content:space-between;}
 .close-btn{background:var(--bg);border:none;border-radius:50%;width:28px;height:28px;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--gray);flex-shrink:0;}
 .hidden{display:none!important;}
+@keyframes spin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
 /* ── PAYMENT ROW ── */
 .pay-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border);}
 .pay-row:last-child{border-bottom:none;}
@@ -449,7 +450,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
         <input type="hidden" id="or_payref" value="">
         <div id="screenshotRequired" style="display:none;font-size:12px;color:#b91c1c;margin-top:4px;">⚠️ Please upload your payment screenshot before submitting.</div>
       </div>
-      <button onclick="submitOrder()" class="btn btn-success btn-full" style="padding:14px;font-size:15px;">Submit Order →</button>
+      <button id="orderSubmitBtn" onclick="submitOrder()" class="btn btn-success btn-full" style="padding:14px;font-size:15px;">Submit Order →</button>
     </div>
   </div>
 </div>
@@ -997,7 +998,7 @@ async function showApp(){
   const stEl=el('hdrState');
   if(stEl)stEl.textContent=currentUser.state||'';
   const vEl=el('hdrVerified');
-  if(vEl)vEl.innerHTML=currentUser.verified
+  if(vEl)vEl.innerHTML=(currentUser.verified||currentUser.role==='founder')
     ?'<span class="hdr-verified">✓ VERIFIED</span>'
     :'<span class="hdr-unverified">⏳ UNVERIFIED</span>';
   buildNav();
@@ -2327,25 +2328,26 @@ async function submitManualFine(){
 }
 
 async function getOrders(){
-  // Get from both sources and merge
   const local = LS.get('orders') || [];
   try{
     const remote = await FB.get('orders');
     if(remote && remote.length > 0){
-      // Merge: remote is source of truth but include any local-only items
       const remoteIds = new Set(remote.map(o=>o.id));
       const localOnly = local.filter(o=>!remoteIds.has(o.id));
-      const merged = [...localOnly, ...remote].sort((a,b)=>b.date.localeCompare(a.date));
+      const merged = [...localOnly, ...remote].sort((a,b)=>b.id.localeCompare(a.id));
       LS.set('orders', merged);
-      if(localOnly.length > 0){ FB.set('orders', merged); } // sync local-only to Firebase
+      if(localOnly.length > 0) FB.set('orders', merged);
       return merged;
     }
   }catch(e){}
   return local;
 }
 async function saveOrders(o){
-  LS.set('orders',o); // save locally first - instant
-  try{ await FB.set('orders',o); } catch(e){ console.warn('Firebase save failed:',e); }
+  // Strip any leftover screenshot data before saving (prevents Firebase 1MB limit failure)
+  const clean = o.map(ord=>({...ord, screenshot:null}));
+  LS.set('orders', clean);
+  try{ await FB.set('orders', clean); }
+  catch(e){ console.warn('Firebase orders save failed:',e); }
 }
 
 function previewScreenshot(input){
@@ -2369,6 +2371,15 @@ function previewScreenshot(input){
 }
 
 async function submitOrder(){
+  const btn=document.getElementById('orderSubmitBtn');
+  const setLoading=(on)=>{
+    if(!btn)return;
+    btn.disabled=on;
+    btn.innerHTML=on
+      ?'<span style="display:inline-flex;align-items:center;gap:8px;justify-content:center;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="animation:spin 0.8s linear infinite;"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>Submitting, kindly wait…</span>'
+      :'Submit Order →';
+  };
+  setLoading(true);
   const g=id=>(document.getElementById(id)?.value||'').trim();
   const name=g('or_name'),phone=g('or_phone'),email=g('or_email');
   const whatsapp=g('or_whatsapp'),pin=g('or_pin');
@@ -2385,23 +2396,24 @@ async function submitOrder(){
   // Validation
   if(!name||!phone||!email||!sitename){
     if(errEl){errEl.textContent='Please fill in your Name, Phone, Email, and Site Name.';errEl.style.display='block';}
-    return;
+    setLoading(false);return;
   }
   if(!whatsapp){
     if(errEl){errEl.textContent='Please enter your WhatsApp number.';errEl.style.display='block';}
-    return;
+    setLoading(false);return;
   }
   if(!pin||pin.length!==4||!/^\d{4}$/.test(pin)){
     if(errEl){errEl.textContent='Please enter a valid 4-digit PIN (numbers only).';errEl.style.display='block';}
-    return;
+    setLoading(false);return;
   }
   if(!payref){
     if(screenshotReqEl)screenshotReqEl.style.display='block';
     if(errEl){errEl.textContent='Please upload your payment screenshot.';errEl.style.display='block';}
-    return;
+    setLoading(false);return;
   }
 
   // Find ambassador and build upline chain
+  try{
   const members=await getMembers();
   const amb=ref?members.find(m=>m.code===ref):null;
   let treeChain=[];
@@ -2662,6 +2674,11 @@ async function submitOrder(){
         </div>
       </div>`;
   }
+  }catch(err){
+    console.error('Order submission error:',err);
+    setLoading(false);
+    if(errEl){errEl.textContent='Something went wrong. Please try again.';errEl.style.display='block';}
+  }
 }
 
 async function exportOrders(){
@@ -2677,20 +2694,40 @@ async function exportOrders(){
 }
 
 async function renderOrdersTab(){
-  const [orders,members]=await Promise.all([getOrders(),getMembers()]);
-  const sorted=orders.sort((a,b)=>b.date.localeCompare(a.date));
-  const pending=sorted.filter(o=>o.status==='Pending').length;
-  const done=sorted.filter(o=>o.status==='Done').length;
+  // Fetch from Firebase directly to ensure fresh data
+  let fbOrders = null;
+  let fbOk = false;
+  try{
+    fbOrders = await FB.get('orders');
+    fbOk = true;
+    if(fbOrders && fbOrders.length > 0) LS.set('orders', fbOrders);
+  }catch(e){ fbOk = false; }
+
+  const orders = fbOrders || LS.get('orders') || [];
+  const sorted = [...orders].sort((a,b)=>(b.id||'').localeCompare(a.id||''));
+  const pending = sorted.filter(o=>!o.paymentConfirmed && !o.approved).length;
+  const building = sorted.filter(o=>o.paymentConfirmed && !o.approved).length;
+  const done = sorted.filter(o=>o.approved).length;
+
+  const syncBadge = fbOk
+    ? `<span style="font-size:10px;background:#d4f0e0;color:#1a6b3c;padding:2px 7px;border-radius:10px;font-weight:700;">🟢 Synced</span>`
+    : `<span style="font-size:10px;background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:10px;font-weight:700;">🔴 Offline — showing local data</span>`;
+
   return`
     <div class="sec-title">VTU Site Orders
-      <button class="btn btn-success btn-sm" onclick="exportOrders()">📊 Excel</button>
+      <div style="display:flex;gap:6px;align-items:center;">
+        ${syncBadge}
+        <button class="btn btn-success btn-sm" onclick="exportOrders()">📊 Excel</button>
+        <button class="btn btn-gray btn-sm" onclick="renderTab('orders')">🔄</button>
+      </div>
     </div>
-    <div class="stats4" style="grid-template-columns:1fr 1fr 1fr;">
+    <div class="stats4" style="grid-template-columns:repeat(4,1fr);">
       <div class="stat4 blue"><div class="stat4-num">${sorted.length}</div><div class="stat4-lbl">Total</div></div>
       <div class="stat4 orange"><div class="stat4-num">${pending}</div><div class="stat4-lbl">Pending</div></div>
+      <div class="stat4" style="background:#e0f0ff;"><div class="stat4-num" style="color:var(--blue)">${building}</div><div class="stat4-lbl">Building</div></div>
       <div class="stat4 green"><div class="stat4-num">${done}</div><div class="stat4-lbl">Done</div></div>
     </div>
-    ${sorted.length===0?'<div class="empty"><div style="font-size:28px">📭</div><div>No orders yet</div></div>':''}
+    ${sorted.length===0?`<div class="empty"><div style="font-size:28px">📭</div><div>No orders yet</div>${!fbOk?'<div style="font-size:12px;color:var(--red);margin-top:8px;">⚠️ Could not reach Firebase. Orders submitted by customers may not appear until connection is restored.</div>':''}</div>`:''}
     ${sorted.map(o=>{
       // Find referrer
       const referrer=o.ref?members.find(m=>m.code===o.ref.toUpperCase()||m.name.toLowerCase().includes(o.ref.toLowerCase())):null;
@@ -2710,24 +2747,35 @@ async function renderOrdersTab(){
           </select>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:12px;margin-bottom:10px;">
+          <div><span style="color:var(--muted)">Phone:</span> ${o.phone||'—'}</div>
+          <div><span style="color:var(--muted)">WhatsApp:</span> <b>${o.whatsapp||o.phone||'—'}</b></div>
           <div><span style="color:var(--muted)">Email:</span> ${o.email||'—'}</div>
           <div><span style="color:var(--muted)">State:</span> ${o.state||'—'}</div>
           <div><span style="color:var(--muted)">Site Name:</span> <b>${o.sitename||'—'}</b></div>
           <div><span style="color:var(--muted)">Source:</span> ${o.source||'—'}</div>
-          <div style="grid-column:1/-1">
-          <span style="color:var(--muted)">Payment:</span> 
-          ${o.screenshot?'<div style=\"margin-top:4px\"><img src=\"'+o.screenshot+'\" style=\"max-width:100%;max-height:160px;border-radius:8px;object-fit:contain;border:1px solid var(--border)\"></div>':'<b>'+( o.payref||'—')+'</b>'}
-        </div>
+          <div style="grid-column:1/-1;background:#f0f4ff;border-radius:6px;padding:5px 8px;">
+            <span style="color:var(--muted)">Desired PIN:</span>
+            <b style="font-family:monospace;font-size:15px;color:#1a3a8f;letter-spacing:3px;">${o.pin||'—'}</b>
+          </div>
+          <div style="grid-column:1/-1"><span style="color:var(--muted)">Payment:</span> <b>${o.payref||'—'}</b></div>
           ${o.ref?`<div style="grid-column:1/-1;background:var(--green-light);padding:5px 8px;border-radius:6px;color:var(--green);font-weight:700;">
             👤 Referred by: ${o.ref.toUpperCase()}${referrer?' — '+referrer.name:''}
           </div>`:'<div style="grid-column:1/-1;color:var(--muted);">Direct (no referral)</div>'}
         </div>
-        <div style="display:flex;gap:7px;flex-wrap:wrap;">
-          ${!o.approved?`<button class="btn btn-success btn-sm" style="flex:1" onclick="approveOrder('${o.id}')">✅ Approve & Count</button>`:'<span style="font-size:11px;color:var(--green);font-weight:700;padding:6px;">✅ Approved '+( o.approvedDate||'')+'</span>'}
-          <button class="btn btn-primary btn-sm" style="flex:1" onclick="openSiteDelivery('${o.id}')">📤 Send Details</button>
-          ${o.siteLink?`<button class="btn btn-gray btn-sm" onclick="openSiteDelivery('${o.id}')">✏️ Resend</button>`:''}
+        <div style="margin-bottom:8px;">
+          ${o.approved
+            ? `<div style="background:var(--green-light);border-radius:8px;padding:7px 10px;font-size:12px;color:var(--green);font-weight:700;">✅ Site built & commission released — ${o.approvedDate||''}</div>`
+            : o.paymentConfirmed
+              ? `<div style="background:#e0f0ff;border-radius:8px;padding:7px 10px;font-size:12px;color:var(--blue);font-weight:700;margin-bottom:6px;">🔨 Payment confirmed — Building since ${o.paymentConfirmedDate||''}</div>
+                 <button class="btn btn-success btn-sm" style="width:100%;margin-bottom:4px;" onclick="approveOrder('${o.id}')">🚀 Mark as Built & Release Commission</button>
+                 <button class="btn btn-primary btn-sm" style="width:100%;" onclick="openSiteDelivery('${o.id}')">📤 Send Site Details to Customer</button>`
+              : `<div style="background:#fef3dc;border-radius:8px;padding:7px 10px;font-size:12px;color:#92600a;font-weight:700;margin-bottom:6px;">⏳ Awaiting payment confirmation</div>
+                 <button class="btn btn-gold btn-sm" style="width:100%;margin-bottom:4px;background:#e8a020;color:#fff;border:none;border-radius:8px;padding:9px;font-weight:700;cursor:pointer;" onclick="approvePayment('${o.id}')">✅ Confirm Payment Received</button>
+                 <button class="btn btn-primary btn-sm" style="width:100%;" onclick="openSiteDelivery('${o.id}')">📤 Send Site Details</button>`
+          }
+          ${o.approved && o.siteLink ? `<div style="margin-top:6px;font-size:11px;background:var(--green-light);color:var(--green);padding:5px 9px;border-radius:6px;">🔗 <a href="${o.siteLink}" target="_blank" style="color:var(--green);">${o.siteLink}</a> &nbsp;<button class="btn btn-gray btn-sm" onclick="openSiteDelivery('${o.id}')">✏️ Resend</button></div>` : ''}
+          ${o.approved && !o.siteLink ? `<button class="btn btn-primary btn-sm" style="width:100%;margin-top:4px;" onclick="openSiteDelivery('${o.id}')">📤 Send Site Details to Customer</button>` : ''}
         </div>
-        ${o.siteLink?`<div style="margin-top:6px;font-size:11px;background:var(--green-light);color:var(--green);padding:5px 9px;border-radius:6px;">✅ Site delivered: <a href="${o.siteLink}" target="_blank" style="color:var(--green);">${o.siteLink}</a></div>`:''}
       </div>`;}).join('')}`;
 }
 
@@ -3018,50 +3066,72 @@ async function loadBellCount(){
   }catch{}
 }
 
+// STAGE 1: Founder confirms payment is received (no commission yet)
+async function approvePayment(orderId){
+  if(!confirm('Confirm payment received for this order? This does NOT release commission yet — commission is only released when you mark the site as built.')) return;
+  const orders = await getOrders();
+  const idx = orders.findIndex(o=>o.id===orderId);
+  if(idx<0){alert('Order not found');return;}
+  if(orders[idx].paymentConfirmed){alert('Payment already confirmed.');return;}
+  orders[idx].paymentConfirmed = true;
+  orders[idx].paymentConfirmedDate = today();
+  orders[idx].status = 'Building';
+  await saveOrders(orders);
+  // Notify the chain that payment is confirmed and site is being built
+  const order = orders[idx];
+  if(order.treeChain && order.treeChain.length>0){
+    await addNotification(order.treeChain.map(t=>t.code),
+      order.name+'\'s payment confirmed! Their site is now being built.',
+      'order', orderId);
+  }
+  renderTab('orders');
+  alert('✅ Payment confirmed. Site status set to "Building". Commission will be released when you mark it as Done.');
+}
+
+// STAGE 2: Founder marks site as built and releases commission
 async function approveOrder(orderId){
-  if(!confirm('Approve this order? This will count as a sign-up for the ambassador and their upline chain.')) return;
+  if(!confirm('Mark this site as BUILT and release commission to the team?\n\nThis will count the sign-up and credit the full commission chain. This cannot be undone.')) return;
   const [orders, members, signups] = await Promise.all([getOrders(), getMembers(), getSignups()]);
   const idx = orders.findIndex(o=>o.id===orderId);
   if(idx<0){alert('Order not found');return;}
   const order = orders[idx];
-  if(order.approved){alert('Already approved.');return;}
+  if(order.approved){alert('Commission already released for this order.');return;}
+  if(!order.paymentConfirmed){
+    if(!confirm('Payment has not been confirmed yet. Are you sure you want to release commission without confirming payment first?')) return;
+  }
 
   orders[idx].approved = true;
-  orders[idx].status = 'Approved';
+  orders[idx].status = 'Done';
   orders[idx].approvedDate = today();
   await saveOrders(orders);
 
-  // Add as a sign-up so commission calculator picks it up
+  // NOW add the sign-up and release commission
   if(order.ambassadorCode){
     const newSig = {
       id:'SIG_'+orderId, customerName:order.name,
       amount:2000, package:'VTU Site',
       state:order.state||'', ambassadorCode:order.ambassadorCode,
-      date:order.date, note:'Site order — approved by founder',
+      date:order.date, note:'Site order — site built & approved by founder',
       recordedBy:'FOUNDER', fromOrder:true
     };
     signups.unshift(newSig);
     await saveSignups(signups);
 
-    // Notify entire chain that commission is approved
+    // Notify the chain that commission is now live
     if(order.treeChain && order.treeChain.length>0){
-      const chain = order.treeChain;
-      const msgs = {
-        ambassador: order.name+' site order APPROVED! ₦600 commission added to your account.',
-        cc: order.name+' site order approved — ₦200 commission added via your ambassador '+order.ambassadorCode,
-        pm: order.name+' site order approved — ₦100 added to your state commission.',
-        pfc: order.name+' site order approved — ₦50 added to your network commission.',
-        founder: 'Site order for '+order.name+' approved.'
-      };
-      for(const member of chain){
-        const msg = msgs[member.role] || 'Order approved: '+order.name;
+      const commissionMap={ambassador:600,cc:200,pm:100,pfc:50};
+      for(const member of order.treeChain){
+        const comm=commissionMap[member.role]||0;
+        const msg=comm>0
+          ?order.name+'\'s site is live! ₦'+comm.toLocaleString()+' commission added to your balance.'
+          :'Site for '+order.name+' has been delivered successfully.';
         await addNotification([member.code], msg, 'signup', orderId);
       }
     }
   }
 
   renderTab('orders');
-  alert('✅ Order approved! Commission has been allocated to the ambassador chain.');
+  alert('✅ Site marked as built! Commission has been released to the team.');
 }
 
 (async()=>{
