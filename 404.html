@@ -428,7 +428,7 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
           <option value="Other">Other</option>
         </select>
       </div>
-      <div class="fg"><label class="fl">Referred By (Ambassador code, if any)</label><input class="fi" id="or_ref" placeholder="e.g. AM001 (optional)"></div>
+      <div class="fg"><label class="fl">Referred By (Any team code — AM, CC, PM or PFC)</label><input class="fi" id="or_ref" placeholder="e.g. AM001, CC001 (optional)" style="text-transform:uppercase"></div>
       <div style="background:#f8fafc;border-radius:10px;padding:13px;margin-bottom:12px;">
         <div style="font-size:11px;font-weight:800;color:#0a1628;text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">💳 Payment</div>
         <div style="font-size:13px;color:#334155;margin-bottom:8px;">Transfer <b>₦2,000</b> to:</div>
@@ -2412,7 +2412,7 @@ async function submitOrder(){
     setLoading(false);return;
   }
 
-  // Find ambassador and build upline chain
+  // Find referrer (any role) and build upline chain
   try{
   const members=await getMembers();
   const amb=ref?members.find(m=>m.code===ref):null;
@@ -2694,90 +2694,110 @@ async function exportOrders(){
 }
 
 async function renderOrdersTab(){
-  // Fetch from Firebase directly to ensure fresh data
-  let fbOrders = null;
-  let fbOk = false;
+  let fbOrders=null, fbOk=false;
   try{
-    fbOrders = await FB.get('orders');
-    fbOk = true;
-    if(fbOrders && fbOrders.length > 0) LS.set('orders', fbOrders);
-  }catch(e){ fbOk = false; }
+    fbOrders=await FB.get('orders');
+    fbOk=true;
+    if(fbOrders&&fbOrders.length>0) LS.set('orders',fbOrders);
+  }catch(e){ fbOk=false; }
 
-  const orders = fbOrders || LS.get('orders') || [];
-  const sorted = [...orders].sort((a,b)=>(b.id||'').localeCompare(a.id||''));
-  const pending = sorted.filter(o=>!o.paymentConfirmed && !o.approved).length;
-  const building = sorted.filter(o=>o.paymentConfirmed && !o.approved).length;
-  const done = sorted.filter(o=>o.approved).length;
+  const orders=fbOrders||LS.get('orders')||[];
+  const sorted=[...orders].sort((a,b)=>(b.id||'').localeCompare(a.id||''));
+  const pending=sorted.filter(o=>!o.paymentConfirmed&&!o.approved).length;
+  const building=sorted.filter(o=>o.paymentConfirmed&&!o.approved).length;
+  const done=sorted.filter(o=>o.approved).length;
 
-  const syncBadge = fbOk
-    ? `<span style="font-size:10px;background:#d4f0e0;color:#1a6b3c;padding:2px 7px;border-radius:10px;font-weight:700;">🟢 Synced</span>`
-    : `<span style="font-size:10px;background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:10px;font-weight:700;">🔴 Offline — showing local data</span>`;
+  const syncBadge=fbOk
+    ?'<span style="font-size:10px;background:#d4f0e0;color:#1a6b3c;padding:2px 7px;border-radius:10px;font-weight:700;">&#x1F7E2; Synced</span>'
+    :'<span style="font-size:10px;background:#fee2e2;color:#b91c1c;padding:2px 7px;border-radius:10px;font-weight:700;">&#x1F534; Offline</span>';
 
-  return`
-    <div class="sec-title">VTU Site Orders
-      <div style="display:flex;gap:6px;align-items:center;">
-        ${syncBadge}
-        <button class="btn btn-success btn-sm" onclick="exportOrders()">📊 Excel</button>
-        <button class="btn btn-gray btn-sm" onclick="renderTab('orders')">🔄</button>
-      </div>
-    </div>
-    <div class="stats4" style="grid-template-columns:repeat(4,1fr);">
-      <div class="stat4 blue"><div class="stat4-num">${sorted.length}</div><div class="stat4-lbl">Total</div></div>
-      <div class="stat4 orange"><div class="stat4-num">${pending}</div><div class="stat4-lbl">Pending</div></div>
-      <div class="stat4" style="background:#e0f0ff;"><div class="stat4-num" style="color:var(--blue)">${building}</div><div class="stat4-lbl">Building</div></div>
-      <div class="stat4 green"><div class="stat4-num">${done}</div><div class="stat4-lbl">Done</div></div>
-    </div>
-    ${sorted.length===0?`<div class="empty"><div style="font-size:28px">📭</div><div>No orders yet</div>${!fbOk?'<div style="font-size:12px;color:var(--red);margin-top:8px;">⚠️ Could not reach Firebase. Orders submitted by customers may not appear until connection is restored.</div>':''}</div>`:''}
-    ${sorted.map(o=>{
-      // Find referrer
-      const referrer=o.ref?members.find(m=>m.code===o.ref.toUpperCase()||m.name.toLowerCase().includes(o.ref.toLowerCase())):null;
-      const statusColor=o.status==='Done'?'var(--green-light)':o.status==='Building'?'#e0f0ff':'#fef3dc';
-      const statusText=o.status==='Done'?'var(--green)':o.status==='Building'?'var(--blue)':'var(--gold)';
-      return`<div class="card" style="border-left:4px solid ${o.status==='Done'?'var(--green)':o.status==='Building'?'var(--blue)':'var(--gold)'}">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">
-          <div>
-            <div style="font-weight:700;font-size:14px">${o.name}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:1px">${o.date} · ${o.phone}</div>
-          </div>
-          <select onchange="updateOrderStatus('${o.id}',this.value)"
-            style="font-size:11px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:${statusColor};color:${statusText};font-weight:700;cursor:pointer;">
-            <option ${o.status==='Pending'?'selected':''} value="Pending">Pending</option>
-            <option ${o.status==='Building'?'selected':''} value="Building">Building</option>
-            <option ${o.status==='Done'?'selected':''} value="Done">Done ✓</option>
-          </select>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:12px;margin-bottom:10px;">
-          <div><span style="color:var(--muted)">Phone:</span> ${o.phone||'—'}</div>
-          <div><span style="color:var(--muted)">WhatsApp:</span> <b>${o.whatsapp||o.phone||'—'}</b></div>
-          <div><span style="color:var(--muted)">Email:</span> ${o.email||'—'}</div>
-          <div><span style="color:var(--muted)">State:</span> ${o.state||'—'}</div>
-          <div><span style="color:var(--muted)">Site Name:</span> <b>${o.sitename||'—'}</b></div>
-          <div><span style="color:var(--muted)">Source:</span> ${o.source||'—'}</div>
-          <div style="grid-column:1/-1;background:#f0f4ff;border-radius:6px;padding:5px 8px;">
-            <span style="color:var(--muted)">Desired PIN:</span>
-            <b style="font-family:monospace;font-size:15px;color:#1a3a8f;letter-spacing:3px;">${o.pin||'—'}</b>
-          </div>
-          <div style="grid-column:1/-1"><span style="color:var(--muted)">Payment:</span> <b>${o.payref||'—'}</b></div>
-          ${o.ref?`<div style="grid-column:1/-1;background:var(--green-light);padding:5px 8px;border-radius:6px;color:var(--green);font-weight:700;">
-            👤 Referred by: ${o.ref.toUpperCase()}${referrer?' — '+referrer.name:''}
-          </div>`:'<div style="grid-column:1/-1;color:var(--muted);">Direct (no referral)</div>'}
-        </div>
-        <div style="margin-bottom:8px;">
-          ${o.approved
-            ? `<div style="background:var(--green-light);border-radius:8px;padding:7px 10px;font-size:12px;color:var(--green);font-weight:700;">✅ Site built & commission released — ${o.approvedDate||''}</div>`
-            : o.paymentConfirmed
-              ? `<div style="background:#e0f0ff;border-radius:8px;padding:7px 10px;font-size:12px;color:var(--blue);font-weight:700;margin-bottom:6px;">🔨 Payment confirmed — Building since ${o.paymentConfirmedDate||''}</div>
-                 <button class="btn btn-success btn-sm" style="width:100%;margin-bottom:4px;" onclick="approveOrder('${o.id}')">🚀 Mark as Built & Release Commission</button>
-                 <button class="btn btn-primary btn-sm" style="width:100%;" onclick="openSiteDelivery('${o.id}')">📤 Send Site Details to Customer</button>`
-              : `<div style="background:#fef3dc;border-radius:8px;padding:7px 10px;font-size:12px;color:#92600a;font-weight:700;margin-bottom:6px;">⏳ Awaiting payment confirmation</div>
-                 <button class="btn btn-gold btn-sm" style="width:100%;margin-bottom:4px;background:#e8a020;color:#fff;border:none;border-radius:8px;padding:9px;font-weight:700;cursor:pointer;" onclick="approvePayment('${o.id}')">✅ Confirm Payment Received</button>
-                 <button class="btn btn-primary btn-sm" style="width:100%;" onclick="openSiteDelivery('${o.id}')">📤 Send Site Details</button>`
-          }
-          ${o.approved && o.siteLink ? `<div style="margin-top:6px;font-size:11px;background:var(--green-light);color:var(--green);padding:5px 9px;border-radius:6px;">🔗 <a href="${o.siteLink}" target="_blank" style="color:var(--green);">${o.siteLink}</a> &nbsp;<button class="btn btn-gray btn-sm" onclick="openSiteDelivery('${o.id}')">✏️ Resend</button></div>` : ''}
-          ${o.approved && !o.siteLink ? `<button class="btn btn-primary btn-sm" style="width:100%;margin-top:4px;" onclick="openSiteDelivery('${o.id}')">📤 Send Site Details to Customer</button>` : ''}
-        </div>
-      </div>`;}).join('')}`;
+  let html='<div class="sec-title">VTU Site Orders'
+    +'<div style="display:flex;gap:6px;align-items:center;">'+syncBadge
+    +'<button class="btn btn-success btn-sm" onclick="exportOrders()">&#x1F4CA; Excel</button>'
+    +'<button class="btn btn-gray btn-sm" onclick="renderTab(\"orders\")">&#x1F504;</button>'
+    +'</div></div>';
+
+  html+='<div class="stats4" style="grid-template-columns:repeat(4,1fr);">'
+    +'<div class="stat4 blue"><div class="stat4-num">'+sorted.length+'</div><div class="stat4-lbl">Total</div></div>'
+    +'<div class="stat4 orange"><div class="stat4-num">'+pending+'</div><div class="stat4-lbl">Pending</div></div>'
+    +'<div class="stat4" style="background:#e0f0ff;"><div class="stat4-num" style="color:var(--blue)">'+building+'</div><div class="stat4-lbl">Building</div></div>'
+    +'<div class="stat4 green"><div class="stat4-num">'+done+'</div><div class="stat4-lbl">Done</div></div>'
+    +'</div>';
+
+  if(sorted.length===0){
+    html+='<div class="empty"><div style="font-size:28px">&#x1F4EB;</div><div>No orders yet</div>'
+      +(fbOk?'':'<div style="font-size:12px;color:var(--red);margin-top:8px;">&#x26A0;&#xFE0F; Firebase offline. Use Tools &#x2192; Fix Orders Storage.</div>')
+      +'</div>';
+    return html;
+  }
+
+  const members=await getMembers();
+  for(const o of sorted){
+    const referrer=o.ref?members.find(m=>m.code===o.ref.toUpperCase()):null;
+
+    // Status badge
+    let statusBadge='';
+    if(o.approved){
+      statusBadge='<div style="background:#d4f0e0;border-radius:8px;padding:7px 10px;font-size:12px;color:#1a6b3c;font-weight:700;margin-bottom:8px;">&#x2705; Site built &amp; commission released &mdash; '+(o.approvedDate||'')+'</div>';
+    } else if(o.paymentConfirmed){
+      statusBadge='<div style="background:#e0f0ff;border-radius:8px;padding:7px 10px;font-size:12px;color:var(--blue);font-weight:700;margin-bottom:6px;">&#x1F528; Payment confirmed &mdash; Building since '+(o.paymentConfirmedDate||'')+'</div>';
+    } else {
+      statusBadge='<div style="background:#fef3dc;border-radius:8px;padding:7px 10px;font-size:12px;color:#92600a;font-weight:700;margin-bottom:6px;">&#x23F3; Awaiting payment confirmation</div>';
+    }
+
+    // Action buttons
+    let actionBtns='';
+    if(o.approved){
+      if(o.siteLink){
+        actionBtns='<a href="'+o.siteLink+'" target="_blank" style="font-size:11px;color:var(--green);">&#x1F517; '+o.siteLink+'</a>'
+          +' <button class="btn btn-gray btn-sm" onclick="openSiteDelivery(\'+o.id+\')">&#x270F;&#xFE0F; Resend</button>';
+      } else {
+        actionBtns='<button class="btn btn-primary btn-sm" style="width:100%;" onclick="openSiteDelivery(\'+o.id+\')">&#x1F4E4; Send Site Details to Customer</button>';
+      }
+    } else if(o.paymentConfirmed){
+      actionBtns='<button class="btn btn-success btn-sm" style="width:100%;margin-bottom:4px;" onclick="approveOrder(\'+o.id+\')">&#x1F680; Mark as Built &amp; Release Commission</button>'
+        +'<button class="btn btn-primary btn-sm" style="width:100%;" onclick="openSiteDelivery(\'+o.id+\')">&#x1F4E4; Send Site Details</button>';
+    } else {
+      actionBtns='<button class="btn btn-sm" style="width:100%;margin-bottom:4px;background:#e8a020;color:#fff;border:none;border-radius:8px;padding:9px;font-weight:700;cursor:pointer;" onclick="approvePayment(\'+o.id+\')">&#x2705; Confirm Payment Received</button>'
+        +'<button class="btn btn-primary btn-sm" style="width:100%;" onclick="openSiteDelivery(\'+o.id+\')">&#x1F4E4; Send Site Details</button>';
+    }
+
+    const refLine=o.ref
+      ?'<div style="grid-column:1/-1;background:var(--green-light);padding:5px 8px;border-radius:6px;color:var(--green);font-weight:700;">&#x1F464; Referred by: '+o.ref.toUpperCase()+(referrer?' &mdash; '+referrer.name:'')+'</div>'
+      :'<div style="grid-column:1/-1;color:var(--muted);">Direct (no referral)</div>';
+
+    const borderColor=o.approved?'var(--green)':o.paymentConfirmed?'var(--blue)':'var(--gold)';
+
+    html+='<div class="card" style="border-left:4px solid '+borderColor+';">'
+      +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'
+        +'<div><div style="font-weight:700;font-size:14px;">'+o.name+'</div>'
+        +'<div style="font-size:11px;color:var(--muted);margin-top:1px;">'+o.date+' &middot; '+(o.time||'')+'</div></div>'
+        +'<select onchange="updateOrderStatus(\'+o.id+\',this.value)" style="font-size:11px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);font-weight:700;cursor:pointer;">'
+          +'<option '+(o.status==='Pending'?'selected':'')+' value="Pending">Pending</option>'
+          +'<option '+(o.status==='Building'?'selected':'')+' value="Building">Building</option>'
+          +'<option '+(o.status==='Done'?'selected':'')+' value="Done">Done &#x2713;</option>'
+        +'</select>'
+      +'</div>'
+      +statusBadge
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:5px;font-size:12px;margin-bottom:10px;">'
+        +'<div><span style="color:var(--muted)">Phone:</span> '+(o.phone||'&mdash;')+'</div>'
+        +'<div><span style="color:var(--muted)">WhatsApp:</span> <b>'+(o.whatsapp||o.phone||'&mdash;')+'</b></div>'
+        +'<div><span style="color:var(--muted)">Email:</span> '+(o.email||'&mdash;')+'</div>'
+        +'<div><span style="color:var(--muted)">State:</span> '+(o.state||'&mdash;')+'</div>'
+        +'<div><span style="color:var(--muted)">Site Name:</span> <b>'+(o.sitename||'&mdash;')+'</b></div>'
+        +'<div><span style="color:var(--muted)">Source:</span> '+(o.source||'&mdash;')+'</div>'
+        +'<div style="grid-column:1/-1;background:#f0f4ff;border-radius:6px;padding:5px 8px;">'
+          +'<span style="color:var(--muted)">PIN:</span> '
+          +'<b style="font-family:monospace;font-size:15px;color:#1a3a8f;letter-spacing:3px;">'+(o.pin||'&mdash;')+'</b>'
+        +'</div>'
+        +refLine
+      +'</div>'
+      +'<div>'+actionBtns+'</div>'
+      +'</div>';
+  }
+  return html;
 }
+
 
 async function openSiteDelivery(orderId){
   const orders=await getOrders();
@@ -2953,7 +2973,15 @@ async function initOrdersInFirebase(){
 
 async function openManualOrder(){
   const members = await getMembers();
-  const ambList = members.filter(m=>m.role==='ambassador');
+  const refList = members.filter(m=>m.role!=='founder');
+  const byRole = ['ambassador','cc','pm','pfc'];
+  const grouped = byRole.map(role=>{
+    const list = refList.filter(m=>m.role===role);
+    if(!list.length) return '';
+    return '<optgroup label="'+( ROLES[role]||role)+'">'
+      +list.map(m=>'<option value="'+m.code+'">'+m.name+' ('+m.code+')</option>').join('')
+      +'</optgroup>';
+  }).join('');
   openSheet(`
     <div class="sheet-title">✍️ Add Order Manually<button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>
     <div class="alert alert-info" style="font-size:12px;margin-bottom:12px;">Use this for orders received via WhatsApp or phone call.</div>
@@ -2964,10 +2992,10 @@ async function openManualOrder(){
     <div class="fg"><label class="fl">State</label><input class="fi" id="mo_state" placeholder="e.g. Lagos"></div>
     <div class="fg"><label class="fl">Site Name</label><input class="fi" id="mo_sitename" placeholder="e.g. Kemi Data Hub"></div>
     <div class="fg"><label class="fl">Desired PIN</label><input class="fi" id="mo_pin" maxlength="4" placeholder="4-digit PIN"></div>
-    <div class="fg"><label class="fl">Referred By (Ambassador Code)</label>
+    <div class="fg"><label class="fl">Referred By (Any Team Code)</label>
       <select class="fsl" id="mo_ref">
         <option value="">Direct (no referral)</option>
-        ${ambList.map(m=>`<option value="${m.code}">${m.name} (${m.code})</option>`).join('')}
+        ${grouped}
       </select>
     </div>
     <div class="fg"><label class="fl">Payment Status</label>
