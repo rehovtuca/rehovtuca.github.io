@@ -547,26 +547,14 @@ const REHOVTU_ACCT={name:'RehoVTU',bank:'Guaranty Trust Bank',number:'3004221210
 // Brevo email
 const _bk='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';
 async function sendEmail(to,toName,subject,html){
-  if(!to||!to.includes('@')){
-    alert('No valid email for this customer. Cannot send.');
-    return false;
-  }
+  if(!to||!to.includes('@'))return;
   try{
-    const res=await fetch('https://api.brevo.com/v3/smtp/email',{
+    await fetch('https://api.brevo.com/v3/smtp/email',{
       method:'POST',
       headers:{'accept':'application/json','api-key':_bk,'content-type':'application/json'},
       body:JSON.stringify({sender:{name:'RehoVTU',email:'rehovtu@gmail.com'},to:[{email:to,name:toName}],subject,htmlContent:html})
     });
-    if(!res.ok){
-      const err=await res.json().catch(()=>({}));
-      alert('Email failed: '+(err.message||'Status '+res.status)+'. Check email address and try again.');
-      return false;
-    }
-    return true;
-  }catch(e){
-    alert('Email failed: '+e.message+'. Check your internet connection.');
-    return false;
-  }
+  }catch{}
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -713,57 +701,85 @@ window.addEventListener('beforeinstallprompt',function(e){
   _deferredInstallPrompt=e;
 });
 function doInstall(){
+  const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  const isAndroid=/android/i.test(navigator.userAgent);
   const isStandalone=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone;
 
   if(isStandalone){
-    alert('\u2705 RehoVTU is already installed on your device!');
+    alert('✅ App is already installed on your device!');
     return;
   }
 
-  // Native browser install prompt (Android Chrome) - fires immediately
+  // Use native install prompt if available (Android Chrome)
   if(_deferredInstallPrompt){
     _deferredInstallPrompt.prompt();
     _deferredInstallPrompt.userChoice.then(function(result){
       if(result.outcome==='accepted'){
-        alert('\u2705 RehoVTU installed! Find it on your home screen.');
+        alert('✅ RehoVTU has been installed! Find it on your home screen.');
       }
       _deferredInstallPrompt=null;
     });
     return;
   }
 
-  // iOS Safari
-  const isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);
+  // Fallback: show manual instructions modal
+  const overlay=document.createElement('div');
+  overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:flex-end;';
+  const modal=document.createElement('div');
+  modal.style.cssText='background:#1a2942;border-radius:20px 20px 0 0;padding:24px 20px 40px;width:100%;max-height:85vh;overflow-y:auto;';
+
   if(isIOS){
-    const overlay=document.createElement('div');
-    overlay.id='installOverlay';
-    overlay.style.cssText='position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.75);z-index:9999;display:flex;align-items:flex-end;';
-    const modal=document.createElement('div');
-    modal.style.cssText='background:#1a2942;border-radius:20px 20px 0 0;padding:24px 20px 40px;width:100%;';
-    modal.innerHTML=
-      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">'
-      +'<div style="font-size:17px;font-weight:800;color:#fff;">\ud83d\udcf2 Install on iPhone/iPad</div>'
-      +'<button id="installCloseBtn" style="background:rgba(255,255,255,.15);border:none;border-radius:50%;width:30px;height:30px;color:#fff;font-size:16px;cursor:pointer;">\u2715</button>'
+    modal.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">'
+      +'<div style="font-size:17px;font-weight:800;color:#fff;">📲 Install on iPhone/iPad</div>'
+      +'<button onclick="this.closest(\'div[style*=position\\:fixed]\').remove()" style="background:rgba(255,255,255,.15);border:none;border-radius:50%;width:30px;height:30px;color:#fff;font-size:16px;cursor:pointer;">✕</button>'
       +'</div>'
       +'<div style="background:rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:12px;">'
       +'<div style="color:#f5b944;font-weight:700;margin-bottom:6px;">Step 1</div>'
-      +'<div style="color:rgba(255,255,255,.85);font-size:14px;">Tap the <b style="color:#fff;">Share button</b> (\u25a1\u2191) at the bottom of Safari</div>'
+      +'<div style="color:rgba(255,255,255,.85);font-size:14px;">Tap the <b style="color:#fff;">Share button</b> (□↑) at the bottom of Safari</div>'
       +'</div>'
       +'<div style="background:rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:12px;">'
       +'<div style="color:#f5b944;font-weight:700;margin-bottom:6px;">Step 2</div>'
-      +'<div style="color:rgba(255,255,255,.85);font-size:14px;">Tap <b style="color:#fff;">\"Add to Home Screen\"</b></div>'
+      +'<div style="color:rgba(255,255,255,.85);font-size:14px;">Scroll down and tap <b style="color:#fff;">"Add to Home Screen"</b></div>'
       +'</div>'
-      +'<div style="margin-top:12px;font-size:12px;color:rgba(255,255,255,.4);text-align:center;">Must be opened in Safari</div>';
-    overlay.appendChild(modal);
-    document.body.appendChild(overlay);
-    document.getElementById('installCloseBtn').onclick=function(){overlay.remove();};
-    overlay.addEventListener('click',function(e){if(e.target===overlay)overlay.remove();});
-    return;
+      +'<div style="background:rgba(255,255,255,.08);border-radius:12px;padding:14px;">'
+      +'<div style="color:#f5b944;font-weight:700;margin-bottom:6px;">Step 3</div>'
+      +'<div style="color:rgba(255,255,255,.85);font-size:14px;">Tap <b style="color:#fff;">"Add"</b> — RehoVTU will appear on your home screen!</div>'
+      +'</div>'
+      +'<div style="margin-top:16px;font-size:12px;color:rgba(255,255,255,.4);text-align:center;">Must be opened in Safari for this to work</div>';
+  } else if(isAndroid){
+    modal.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">'
+      +'<div style="font-size:17px;font-weight:800;color:#fff;">📲 Install on Android</div>'
+      +'<button onclick="this.closest(\'div[style*=position\\:fixed]\').remove()" style="background:rgba(255,255,255,.15);border:none;border-radius:50%;width:30px;height:30px;color:#fff;font-size:16px;cursor:pointer;">✕</button>'
+      +'</div>'
+      +'<div style="background:rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:12px;">'
+      +'<div style="color:#f5b944;font-weight:700;margin-bottom:6px;">Step 1</div>'
+      +'<div style="color:rgba(255,255,255,.85);font-size:14px;">Open <b style="color:#fff;">rehovtu.netlify.app</b> in Chrome browser</div>'
+      +'</div>'
+      +'<div style="background:rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:12px;">'
+      +'<div style="color:#f5b944;font-weight:700;margin-bottom:6px;">Step 2</div>'
+      +'<div style="color:rgba(255,255,255,.85);font-size:14px;">Tap the <b style="color:#fff;">⋮ menu</b> (3 dots) at top right</div>'
+      +'</div>'
+      +'<div style="background:rgba(255,255,255,.08);border-radius:12px;padding:14px;">'
+      +'<div style="color:#f5b944;font-weight:700;margin-bottom:6px;">Step 3</div>'
+      +'<div style="color:rgba(255,255,255,.85);font-size:14px;">Tap <b style="color:#fff;">"Add to Home screen"</b> or <b style="color:#fff;">"Install app"</b></div>'
+      +'</div>'
+      +'<div style="margin-top:16px;font-size:12px;color:rgba(255,255,255,.4);text-align:center;">Note: Must be on rehovtu.netlify.app (not a local file)</div>';
+  } else {
+    modal.innerHTML='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">'
+      +'<div style="font-size:17px;font-weight:800;color:#fff;">📲 Install RehoVTU App</div>'
+      +'<button onclick="this.closest(\'div[style*=position\\:fixed]\').remove()" style="background:rgba(255,255,255,.15);border:none;border-radius:50%;width:30px;height:30px;color:#fff;font-size:16px;cursor:pointer;">✕</button>'
+      +'</div>'
+      +'<div style="background:rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:12px;">'
+      +'<div style="color:rgba(255,255,255,.85);font-size:14px;">Visit <b style="color:#f5b944;">rehovtu.netlify.app</b> in Chrome or Edge, then use the browser menu to install.</div>'
+      +'</div>'
+      +'<div style="margin-top:8px;font-size:12px;color:rgba(255,255,255,.4);text-align:center;">Chrome: ⋮ → Install app &nbsp;|&nbsp; Edge: ··· → Apps → Install</div>';
   }
 
-  // Android but prompt not available (local file, already dismissed, or non-Chrome browser)
-  alert('\u2139\ufe0f To install:\n\n1. Open rehovtuca.github.io in Chrome\n2. Tap the \u22ee menu (3 dots)\n3. Tap \"Add to Home screen\" or \"Install app\"');
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click',function(e){if(e.target===overlay)overlay.remove();});
 }
+
 // Populate upline dropdown based on selected role
 let _uplineAllOptions=[]; // cache for search filtering
 
@@ -1013,7 +1029,7 @@ async function renderTab(tab){
       case 'reports':     content.innerHTML=await renderReports();break;
       case 'logs':        content.innerHTML=await renderLogs();break;
       case 'excel':       content.innerHTML=renderExcelTab();break;
-      case 'orders':      content.innerHTML=await renderOrdersTab();break;
+      case 'orders':      content.innerHTML='<div class="empty"><div style="font-size:28px">⏳</div></div>'; renderOrdersTab().then(h=>{try{document.getElementById('appMain').innerHTML=h;}catch(e){}});break;
       case 'admin':       content.innerHTML=renderAdminTools();break;
     }
   } else {
@@ -2315,32 +2331,23 @@ async function getOrders(){
   const local = LS.get('orders') || [];
   try{
     const remote = await FB.get('orders');
-    if(remote !== null && remote !== undefined){
-      // Firebase responded successfully (even if empty array)
-      const remoteArr = Array.isArray(remote) ? remote : [];
-      const remoteIds = new Set(remoteArr.map(o=>o.id));
+    if(remote && remote.length > 0){
+      const remoteIds = new Set(remote.map(o=>o.id));
       const localOnly = local.filter(o=>!remoteIds.has(o.id));
-      const merged = [...localOnly, ...remoteArr].sort((a,b)=>(b.id||'').localeCompare(a.id||''));
+      const merged = [...localOnly, ...remote].sort((a,b)=>b.id.localeCompare(a.id));
       LS.set('orders', merged);
       if(localOnly.length > 0) FB.set('orders', merged);
       return merged;
     }
-    // Firebase returned null = document doesn't exist yet; push local to Firebase
-    if(local.length > 0){ FB.set('orders', local); }
-  }catch(e){ console.warn('getOrders Firebase error:', e); }
+  }catch(e){}
   return local;
 }
 async function saveOrders(o){
   // Strip any leftover screenshot data before saving (prevents Firebase 1MB limit failure)
   const clean = o.map(ord=>({...ord, screenshot:null}));
   LS.set('orders', clean);
-  try{
-    await FB.set('orders', clean);
-    console.log('✅ Orders saved to Firebase. Count:', clean.length);
-  }catch(e){
-    console.warn('❌ Firebase orders save failed:',e);
-    alert('⚠️ Order saved locally but could not sync to Firebase. Check your internet connection.');
-  }
+  try{ await FB.set('orders', clean); }
+  catch(e){ console.warn('Firebase orders save failed:',e); }
 }
 
 function previewScreenshot(input){
@@ -2687,16 +2694,14 @@ async function exportOrders(){
 }
 
 async function renderOrdersTab(){
-  let fbOk=false;
+  let fbOrders=null, fbOk=false;
   try{
-    const fbOrders=await FB.get('orders');
+    fbOrders=await FB.get('orders');
     fbOk=true;
-    if(fbOrders !== null && fbOrders !== undefined){
-      LS.set('orders', Array.isArray(fbOrders) ? fbOrders : []);
-    }
+    if(fbOrders&&fbOrders.length>0) LS.set('orders',fbOrders);
   }catch(e){ fbOk=false; }
 
-  const orders=LS.get('orders')||[];
+  const orders=fbOrders||LS.get('orders')||[];
   const sorted=[...orders].sort((a,b)=>(b.id||'').localeCompare(a.id||''));
   const pending=sorted.filter(o=>!o.paymentConfirmed&&!o.approved).length;
   const building=sorted.filter(o=>o.paymentConfirmed&&!o.approved).length;
@@ -2896,12 +2901,10 @@ async function sendSiteDetails(orderId){
   </div>
 </div>`;
 
-  const sent=await sendEmail(o.email,o.name,'🎉 Your RehoVTU VTU Site is LIVE!',emailBody);
-  if(sent){
-    closeSheet();
-    renderTab('orders');
-    alert('✅ Email sent to '+o.name+' ('+o.email+')!\n\nSite link saved to their order.');
-  }
+  await sendEmail(o.email,o.name,'🎉 Your RehoVTU VTU Site is LIVE!',emailBody);
+  closeSheet();
+  renderTab('orders');
+  alert('✅ Site details sent to '+o.name+' ('+o.email+')');
 }
 
 async function updateOrderStatus(id,status){
