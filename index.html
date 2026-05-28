@@ -519,8 +519,9 @@ const LS={
   set(k,v){try{localStorage.setItem('rv2_'+k,JSON.stringify(v));}catch{}}
 };
 
-// Global orders cache — keeps rendered orders in sync with button actions
+// Global orders map — keyed by ID for instant lookup from button clicks
 let _ordersCache = null;
+let _ordersMap = {};
 
 // Merge: write to both Firebase + LS; read from LS first then Firebase
 async function dbGet(k){
@@ -994,6 +995,20 @@ async function showApp(){
   setTimeout(loadBellCount,1000);
   setInterval(loadBellCount,60000);
   setInterval(checkAndApplyFines,300000);
+
+  // ── Order button event delegation ─────────────────────────────────────────
+  // All order action buttons use data-action + data-oid — zero quote-escaping issues
+  document.addEventListener('click', async function(e){
+    const btn = e.target.closest('[data-action]');
+    if(!btn) return;
+    const action = btn.dataset.action;
+    const oid = btn.dataset.oid;
+    if(!oid) return;
+    if(action === 'approvePayment')      await approvePayment(oid);
+    else if(action === 'approveOrder')   await approveOrder(oid);
+    else if(action === 'openSiteDelivery') await openSiteDelivery(oid);
+    else if(action === 'deleteOrder')    await deleteOrder(oid);
+  });
 }
 
 function buildNav(){
@@ -2315,31 +2330,31 @@ async function submitManualFine(){
 }
 
 async function getOrders(){
-  // Use in-memory cache if available — avoids race condition where
-  // a button click re-fetches and gets a different snapshot than rendered
-  if(_ordersCache !== null) return _ordersCache;
   const local = LS.get('orders') || [];
   try{
     const remote = await FB.get('orders');
     if(remote !== null && remote !== undefined){
       const remoteArr = Array.isArray(remote) ? remote : [];
-      const remoteIds = new Set(remoteArr.map(o=>String(o.id)));
-      const localOnly = local.filter(o=>!remoteIds.has(String(o.id)));
+      const remoteIds = new Set(remoteArr.map(o=>o.id));
+      const localOnly = local.filter(o=>!remoteIds.has(o.id));
       const merged = [...localOnly, ...remoteArr].sort((a,b)=>(b.id||'').localeCompare(a.id||''));
       LS.set('orders', merged);
       _ordersCache = merged;
+      _ordersMap = {}; merged.forEach(o=>{ _ordersMap[o.id]=o; });
       if(localOnly.length > 0) FB.set('orders', merged);
       return merged;
     }
     if(local.length > 0){ FB.set('orders', local); }
   }catch(e){ console.warn('getOrders Firebase error:', e); }
   _ordersCache = local;
+  _ordersMap = {}; local.forEach(o=>{ _ordersMap[o.id]=o; });
   return local;
 }
 async function saveOrders(o){
   const clean = o.map(ord=>({...ord, screenshot:null}));
   LS.set('orders', clean);
   _ordersCache = clean;
+  _ordersMap = {}; clean.forEach(o=>{ _ordersMap[o.id]=o; });
   try{
     await FB.set('orders', clean);
     console.log('✅ Orders saved to Firebase. Count:', clean.length);
@@ -2698,13 +2713,11 @@ async function renderOrdersTab(){
     const fbOrders=await FB.get('orders');
     fbOk=true;
     if(fbOrders !== null && fbOrders !== undefined){
-      const arr = Array.isArray(fbOrders) ? fbOrders : [];
-      LS.set('orders', arr);
-      _ordersCache = arr; // keep cache in sync so button clicks don't re-fetch
+      LS.set('orders', Array.isArray(fbOrders) ? fbOrders : []);
     }
   }catch(e){ fbOk=false; }
 
-  const orders=_ordersCache||LS.get('orders')||[];
+  const orders=LS.get('orders')||[];
   const sorted=[...orders].sort((a,b)=>(b.id||'').localeCompare(a.id||''));
   const pending=sorted.filter(o=>!o.paymentConfirmed&&!o.approved).length;
   const building=sorted.filter(o=>o.paymentConfirmed&&!o.approved).length;
@@ -2748,23 +2761,23 @@ async function renderOrdersTab(){
       statusBadge='<div style="background:#fef3dc;border-radius:8px;padding:7px 10px;font-size:12px;color:#92600a;font-weight:700;margin-bottom:6px;">&#x23F3; Awaiting payment confirmation</div>';
     }
 
-    // Action buttons
+    // Action buttons - uses data-oid to avoid quote-escaping bugs
+    const oid = o.id;
     let actionBtns='';
     if(o.approved){
       if(o.siteLink){
         actionBtns='<a href="'+o.siteLink+'" target="_blank" style="font-size:11px;color:var(--green);">&#x1F517; '+o.siteLink+'</a>'
-          +' <button class="btn btn-gray btn-sm" onclick="openSiteDelivery(\'+o.id+\')">&#x270F;&#xFE0F; Resend</button>';
+          +' <button class="btn btn-gray btn-sm" data-action="openSiteDelivery" data-oid="'+oid+'">&#x270F;&#xFE0F; Resend</button>';
       } else {
-        actionBtns='<button class="btn btn-primary btn-sm" style="width:100%;" onclick="openSiteDelivery(\'+o.id+\')">&#x1F4E4; Send Site Details to Customer</button>';
+        actionBtns='<button class="btn btn-primary btn-sm" style="width:100%;" data-action="openSiteDelivery" data-oid="'+oid+'">&#x1F4E4; Send Site Details to Customer</button>';
       }
     } else if(o.paymentConfirmed){
-      actionBtns='<button class="btn btn-success btn-sm" style="width:100%;margin-bottom:4px;" onclick="approveOrder(\'+o.id+\')">&#x1F680; Mark as Built &amp; Release Commission</button>'
-        +'<button class="btn btn-primary btn-sm" style="width:100%;" onclick="openSiteDelivery(\'+o.id+\')">&#x1F4E4; Send Site Details</button>';
+      actionBtns='<button class="btn btn-success btn-sm" style="width:100%;margin-bottom:4px;" data-action="approveOrder" data-oid="'+oid+'">&#x1F680; Mark as Built &amp; Release Commission</button>'
+        +'<button class="btn btn-primary btn-sm" style="width:100%;" data-action="openSiteDelivery" data-oid="'+oid+'">&#x1F4E4; Send Site Details</button>';
     } else {
-      actionBtns='<button class="btn btn-sm" style="width:100%;margin-bottom:4px;background:#e8a020;color:#fff;border:none;border-radius:8px;padding:9px;font-weight:700;cursor:pointer;" onclick="approvePayment(\'+o.id+\')">&#x2705; Confirm Payment Received</button>'
-        +'<button class="btn btn-primary btn-sm" style="width:100%;" onclick="openSiteDelivery(\'+o.id+\')">&#x1F4E4; Send Site Details</button>';
+      actionBtns='<button class="btn btn-sm" style="width:100%;margin-bottom:4px;background:#e8a020;color:#fff;border:none;border-radius:8px;padding:9px;font-weight:700;cursor:pointer;" data-action="approvePayment" data-oid="'+oid+'">&#x2705; Confirm Payment Received</button>'
+        +'<button class="btn btn-primary btn-sm" style="width:100%;" data-action="openSiteDelivery" data-oid="'+oid+'">&#x1F4E4; Send Site Details</button>';
     }
-
     const refLine=o.ref
       ?'<div style="grid-column:1/-1;background:var(--green-light);padding:5px 8px;border-radius:6px;color:var(--green);font-weight:700;">&#x1F464; Referred by: '+o.ref.toUpperCase()+(referrer?' &mdash; '+referrer.name:'')+'</div>'
       :'<div style="grid-column:1/-1;color:var(--muted);">Direct (no referral)</div>';
@@ -2775,7 +2788,7 @@ async function renderOrdersTab(){
       +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'
         +'<div><div style="font-weight:700;font-size:14px;">'+o.name+'</div>'
         +'<div style="font-size:11px;color:var(--muted);margin-top:1px;">'+o.date+' &middot; '+(o.time||'')+'</div></div>'
-        +'<select onchange="updateOrderStatus(\'+o.id+\',this.value)" style="font-size:11px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);font-weight:700;cursor:pointer;">'
+        +'<select data-action="updateStatus" data-oid="'+oid+'" onchange="updateOrderStatus(this.dataset.oid,this.value)" style="font-size:11px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);font-weight:700;cursor:pointer;">'
           +'<option '+(o.status==='Pending'?'selected':'')+' value="Pending">Pending</option>'
           +'<option '+(o.status==='Building'?'selected':'')+' value="Building">Building</option>'
           +'<option '+(o.status==='Done'?'selected':'')+' value="Done">Done &#x2713;</option>'
@@ -2796,7 +2809,7 @@ async function renderOrdersTab(){
         +refLine
       +'</div>'
       +'<div>'+actionBtns+'</div>'
-      +'<div style="margin-top:8px;text-align:right;"><button class="btn btn-sm" style="background:#fee2e2;color:#b91c1c;border:none;font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;font-weight:700;" onclick="deleteOrder(\'+o.id+\')">🗑 Delete Order</button></div>'
+      +'<div style="margin-top:8px;text-align:right;"><button class="btn btn-sm" style="background:#fee2e2;color:#b91c1c;border:none;font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;font-weight:700;" data-action="deleteOrder" data-oid="'+oid+'">\U0001f5d1 Delete Order</button></div>'
       +'</div>';
   }
   return html;
@@ -2806,12 +2819,12 @@ async function renderOrdersTab(){
 async function deleteOrder(orderId){
   if(!confirm('⚠️ Delete this order permanently?\n\nThis cannot be undone.')) return;
   const orders = await getOrders();
-  const idx = orders.findIndex(o=>String(o.id)===String(orderId));
+  const idx = orders.findIndex(o=>o.id===orderId);
   if(idx<0){alert('Order not found. Refresh and try again.');return;}
   const name = orders[idx].name || 'this order';
   orders.splice(idx,1);
   await saveOrders(orders);
-  _ordersCache=null;renderTab('orders');
+  renderTab('orders');
   alert('🗑 Order for '+name+' deleted.');
 }
 
@@ -2872,7 +2885,7 @@ async function sendSiteDetails(orderId){
   const url=g('sd_url'),user=g('sd_user'),pass=g('sd_pass'),link=g('sd_link');
   if(!pass||!link){alert('Please enter the password and affiliate link.');return;}
   const orders=await getOrders();
-  const idx=orders.findIndex(o=>String(o.id)===String(orderId));
+  const idx=orders.findIndex(o=>o.id===orderId);
   if(idx<0)return;
   const o=orders[idx];
   // Save site details to order
@@ -2920,14 +2933,14 @@ async function sendSiteDetails(orderId){
   const sent=await sendEmail(o.email,o.name,'🎉 Your RehoVTU VTU Site is LIVE!',emailBody);
   if(sent){
     closeSheet();
-    _ordersCache=null;renderTab('orders');
+    renderTab('orders');
     alert('✅ Email sent to '+o.name+' ('+o.email+')!\n\nSite link saved to their order.');
   }
 }
 
 async function updateOrderStatus(id,status){
   const orders=await getOrders();
-  const idx=orders.findIndex(o=>String(o.id)===String(id));
+  const idx=orders.findIndex(o=>o.id===id);
   if(idx>=0){orders[idx].status=status;await saveOrders(orders);}
 }
 
@@ -3068,7 +3081,7 @@ async function submitManualOrder(){
   orders.unshift(newOrder);
   await saveOrders(orders);
   closeSheet();
-  _ordersCache=null;renderTab('orders');
+  renderTab('orders');
   alert('✅ Order added! Check the Orders tab.');
 }
 
@@ -3229,7 +3242,7 @@ async function loadBellCount(){
 async function approvePayment(orderId){
   if(!confirm('Confirm payment received for this order? This does NOT release commission yet — commission is only released when you mark the site as built.')) return;
   const orders = await getOrders();
-  const idx = orders.findIndex(o=>String(o.id)===String(orderId));
+  const idx = orders.findIndex(o=>o.id===orderId);
   if(idx<0){alert('Order not found. Please refresh the Orders tab and try again.');return;}
   if(orders[idx].paymentConfirmed){alert('Payment already confirmed.');return;}
   orders[idx].paymentConfirmed = true;
@@ -3243,7 +3256,7 @@ async function approvePayment(orderId){
       order.name+'\'s payment confirmed! Their site is now being built.',
       'order', orderId);
   }
-  _ordersCache=null;renderTab('orders');
+  renderTab('orders');
   alert('✅ Payment confirmed. Site status set to "Building". Commission will be released when you mark it as Done.');
 }
 
@@ -3252,7 +3265,7 @@ async function approveOrder(orderId){
   if(!confirm('Mark this site as BUILT and release commission to the team?\n\nThis will count the sign-up and credit the full commission chain. This cannot be undone.')) return;
   const [freshOrders, members, signups] = await Promise.all([getOrders(), getMembers(), getSignups()]);
   const orders = freshOrders;
-  const idx = orders.findIndex(o=>String(o.id)===String(orderId));
+  const idx = orders.findIndex(o=>o.id===orderId);
   if(idx<0){alert('Order not found. Please refresh the Orders tab and try again.');return;}
   const order = orders[idx];
   if(order.approved){alert('Commission already released for this order.');return;}
@@ -3290,7 +3303,7 @@ async function approveOrder(orderId){
     }
   }
 
-  _ordersCache=null;renderTab('orders');
+  renderTab('orders');
   alert('✅ Site marked as built! Commission has been released to the team.');
 }
 
