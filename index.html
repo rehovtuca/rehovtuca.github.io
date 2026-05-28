@@ -2791,7 +2791,7 @@ async function renderOrdersTab(){
         +refLine
       +'</div>'
       +'<div>'+actionBtns+'</div>'
-      +'<div style="margin-top:8px;text-align:right;"><button class="btn btn-sm" style="background:#fee2e2;color:#b91c1c;border:none;font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;font-weight:700;" onclick="deleteOrder(\''+o.id+'\')" >🗑 Delete Order</button></div>'
+      +'<div style="margin-top:8px;text-align:right;"><button class="btn btn-sm" style="background:#fee2e2;color:#b91c1c;border:none;font-size:11px;padding:5px 10px;border-radius:6px;cursor:pointer;font-weight:700;" onclick="deleteOrder(\'+o.id+\')">🗑 Delete Order</button></div>'
       +'</div>';
   }
   return html;
@@ -2800,7 +2800,7 @@ async function renderOrdersTab(){
 
 async function deleteOrder(orderId){
   if(!confirm('⚠️ Delete this order permanently?\n\nThis cannot be undone.')) return;
-  const orders = _ordersCache && _ordersCache.length > 0 ? [..._ordersCache] : await getOrders();
+  const orders = await getOrders();
   const idx = orders.findIndex(o=>o.id===orderId);
   if(idx<0){alert('Order not found. Refresh and try again.');return;}
   const name = orders[idx].name || 'this order';
@@ -3223,7 +3223,7 @@ async function loadBellCount(){
 // STAGE 1: Founder confirms payment is received (no commission yet)
 async function approvePayment(orderId){
   if(!confirm('Confirm payment received for this order? This does NOT release commission yet — commission is only released when you mark the site as built.')) return;
-  const orders = _ordersCache && _ordersCache.length > 0 ? [..._ordersCache] : await getOrders();
+  const orders = await getOrders();
   const idx = orders.findIndex(o=>o.id===orderId);
   if(idx<0){alert('Order not found. Please refresh the Orders tab and try again.');return;}
   if(orders[idx].paymentConfirmed){alert('Payment already confirmed.');return;}
