@@ -1033,6 +1033,7 @@ async function renderTab(tab){
       case 'logs':        content.innerHTML=await renderLogs();break;
       case 'excel':       content.innerHTML=renderExcelTab();break;
       case 'orders':      content.innerHTML=await renderOrdersTab();break;
+      case 'fines':       content.innerHTML=await renderFinesTab();break;
       case 'admin':       content.innerHTML=renderAdminTools();break;
     }
   } else {
