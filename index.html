@@ -3131,8 +3131,10 @@ async function renderMonthlyCycleTab(){
   const history=await renderMonthlyHistory();
 
   return`
-    <div class="sec-title">📅 Monthly Cycle
-      <button class="btn btn-danger btn-sm" onclick="if(confirm('Force monthly reset now? This will snapshot and reset all balances.'))checkMonthlyCycle()">🔄 Force Reset</button>
+    <div class="sec-title">📅 Monthly Cycle</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+      <button class="btn btn-primary btn-full" onclick="manualSnapshot()">📸 Step 1 — Snapshot &amp; Download Report Now</button>
+      <button class="btn btn-danger btn-full" onclick="manualReset()">🔄 Step 2 — Reset Balances for New Month</button>
     </div>
     <div class="stats-row">
       <div class="stat"><div class="stat-label">Current Cycle</div><div class="stat-value" style="font-size:14px">${label}</div></div>
@@ -3161,6 +3163,86 @@ async function renderMonthlyCycleTab(){
 
     <div class="sec-title" style="margin-top:16px;">📁 Monthly Reports</div>
     ${history}`;
+}
+
+async function manualSnapshot(){
+  if(!confirm('Take a snapshot of ALL current balances now?\n\nThis saves everyone\'s current earnings, fines and builder pay as a permanent record you can download anytime.\n\nThis does NOT reset balances — do that separately after downloading.')) return;
+
+  const members = await getMembers();
+  const fines = await getFines();
+  const snapshots = await getMonthlySnapshots();
+  const cycle = getCurrentCycle();
+  const label = getCycleLabel(cycle);
+
+  const snapshot = {
+    cycle: cycle,
+    label: label,
+    date: today(),
+    members: members.map(m=>({
+      code:m.code, name:m.name, role:m.role,
+      bank:m.bank||'', accNum:m.accNum||'', accName:m.accName||'',
+      balance:m.balance||0,
+      fines:fines.filter(f=>f.memberCode===m.code).reduce((s,f)=>s+f.amount,0),
+      sitesBuilt:m.sitesBuilt||0,
+      builderEarnings:m.builderEarnings||0
+    }))
+  };
+
+  snapshots[cycle] = snapshot;
+  await saveMonthlySnapshots(snapshots);
+
+  // Auto download CSV immediately
+  let csv = 'Name,Code,Role,Bank,Account Number,Account Name,Earnings(NGN),Fines(NGN),Sites_Built,Builder_Pay(NGN)\n';
+  snapshot.members.filter(m=>m.role!=='founder').forEach(m=>{
+    const net = (m.balance||0) - (m.fines||0) + (m.builderEarnings||0);
+    csv += '"'+m.name+'","'+m.code+'","'+m.role+'","'+(m.bank||'')+'","'+(m.accNum||'')+'","'+(m.accName||'')+'",'+( m.balance||0)+','+(m.fines||0)+','+(m.sitesBuilt||0)+','+(m.builderEarnings||0)+'\n';
+  });
+  const blob = new Blob([csv],{type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'RehoVTU_'+label.replace(' ','_')+'_Snapshot.csv';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+
+  alert('✅ Snapshot saved and CSV downloaded!\n\nYou can now go to Pending Payouts to see who to pay, then click Force Reset when ready to start the new month.');
+  renderTab('monthly');
+}
+
+async function manualReset(){
+  const snapshots = await getMonthlySnapshots();
+  const cycle = getCurrentCycle();
+  if(!snapshots[cycle]){
+    alert('⚠️ No snapshot found for this period!\n\nPlease take a snapshot first before resetting.');
+    return;
+  }
+  if(!confirm('RESET all balances to zero now?\n\nThis will:\n- Move all balances to Pending Payout\n- Clear all fines\n- Reset builder stats\n- Email all members\n\nMake sure you have downloaded the report first!')) return;
+
+  const members = await getMembers();
+  const updated = members.map(m=>({
+    ...m,
+    pendingPayout:(m.pendingPayout||0)+(m.balance||0),
+    balance:0,
+    sitesBuilt:0,
+    builderEarnings:0
+  }));
+  await saveMembers(updated);
+  await saveFines([]);
+  LS.set('lastCycleReset', cycle);
+
+  // Notify all members
+  for(const m of members.filter(x=>x.role!=='founder'&&x.email)){
+    sendEmail(m.email, m.name, 'New RehoVTU Month — Fresh Start!',
+      '<p>Hi '+m.name+',</p>'
+      +'<p>A new RehoVTU cycle has started!</p>'
+      +'<p>Your earnings of <b>NGN'+(m.balance||0).toLocaleString()+'</b> have been moved to Pending Payout and will be processed soon.</p>'
+      +'<p>New month, new goals! Push hard. RehoVTU Team</p>'
+    );
+  }
+
+  alert('✅ Reset complete! All balances moved to Pending Payout.\n\nNew month started!');
+  renderTab('monthly');
 }
 
 async function markPaid(memberCode){
@@ -3593,8 +3675,122 @@ async function markBuilderComplete(orderId){
   await saveOrders(orders);
 }
 
+// ═══════════════════════════════════════════════════════════
+// BULK EMAIL SYSTEM
+// ═══════════════════════════════════════════════════════════
+async function openBulkEmail(){
+  const members = await getMembers();
+  const roles = ['pfc','pm','cc','ambassador','builder'];
+  const roleLabels = {pfc:'PFC',pm:'PM',cc:'CC',ambassador:'Ambassador',builder:'Builder'};
+  const siteOwners = (await getOrders()).filter(o=>o.approved).map(o=>o.email).filter(Boolean);
+
+  openSheet(
+    '<div class="sheet-title">📧 Send Bulk Email<button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>'
+    +'<div style="margin-bottom:12px;">'
+    +'<div style="font-weight:700;font-size:13px;margin-bottom:8px;">Select Recipients:</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;">'
+    +'<label style="display:flex;align-items:center;gap:6px;background:#f0fdf4;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;">'
+    +'<input type="checkbox" id="be_all" onchange="toggleBulkAll(this)"> All Members</label>'
+    +roles.map(r=>'<label style="display:flex;align-items:center;gap:6px;background:#f8fafc;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;">'
+    +'<input type="checkbox" class="be_role" value="'+r+'"> '+roleLabels[r]+' ('+members.filter(m=>m.role===r).length+')</label>').join('')
+    +'<label style="display:flex;align-items:center;gap:6px;background:#fff8e0;padding:6px 10px;border-radius:8px;cursor:pointer;font-size:13px;">'
+    +'<input type="checkbox" class="be_role" value="siteowners"> Site Owners ('+siteOwners.length+')</label>'
+    +'</div>'
+    +'<div style="font-size:11px;color:var(--muted);margin-bottom:12px;" id="be_count">0 recipients selected</div>'
+    +'</div>'
+    +'<div class="fg"><label class="fl">Subject</label><input class="fi" id="be_subject" placeholder="Email subject..."></div>'
+    +'<div class="fg"><label class="fl">Message</label>'
+    +'<textarea id="be_body" style="width:100%;min-height:140px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;" placeholder="Write your message here... Use {name} to personalise each message."></textarea>'
+    +'</div>'
+    +'<div id="be_result" style="margin-bottom:8px;"></div>'
+    +'<button class="btn btn-primary btn-full" onclick="sendBulkEmail()">📧 Send to Selected</button>'
+  );
+
+  // Update count when checkboxes change
+  document.querySelectorAll('.be_role').forEach(cb=>{
+    cb.addEventListener('change', updateBulkCount);
+  });
+}
+
+function toggleBulkAll(cb){
+  document.querySelectorAll('.be_role').forEach(r=>{ r.checked = cb.checked; });
+  updateBulkCount();
+}
+
+function updateBulkCount(){
+  const allChecked = document.getElementById('be_all');
+  const roles = [...document.querySelectorAll('.be_role:checked')].map(c=>c.value);
+  if(allChecked) allChecked.checked = roles.length === document.querySelectorAll('.be_role').length;
+  // Count will be updated when sending
+  document.getElementById('be_count').textContent = roles.length > 0 ? roles.join(', ')+' selected' : '0 recipients selected';
+}
+
+async function sendBulkEmail(){
+  const subject = document.getElementById('be_subject').value.trim();
+  const body = document.getElementById('be_body').value.trim();
+  if(!subject||!body){ alert('Fill in subject and message.'); return; }
+
+  const selectedRoles = [...document.querySelectorAll('.be_role:checked')].map(c=>c.value);
+  if(selectedRoles.length===0){ alert('Select at least one recipient group.'); return; }
+
+  const members = await getMembers();
+  const orders = await getOrders();
+  const resultEl = document.getElementById('be_result');
+  resultEl.innerHTML = '<div style="color:#1a3a8f;font-size:13px;">⏳ Sending...</div>';
+
+  // Build recipient list
+  let recipients = [];
+  selectedRoles.forEach(role=>{
+    if(role==='siteowners'){
+      // Site owners - from approved orders
+      orders.filter(o=>o.approved&&o.email).forEach(o=>{
+        if(!recipients.find(r=>r.email===o.email)){
+          recipients.push({name:o.name, email:o.email});
+        }
+      });
+    } else {
+      members.filter(m=>m.role===role&&m.email).forEach(m=>{
+        if(!recipients.find(r=>r.email===m.email)){
+          recipients.push({name:m.name, email:m.email});
+        }
+      });
+    }
+  });
+
+  if(recipients.length===0){ alert('No email addresses found for selected groups.'); return; }
+
+  if(!confirm('Send to '+recipients.length+' recipients? This cannot be undone.')){ return; }
+
+  // Send emails one by one with personalisation
+  let sent=0, failed=0;
+  for(const r of recipients){
+    const personalBody = body.replace(/{name}/g, r.name.split(' ')[0]);
+    const htmlBody = '<div style="font-family:sans-serif;max-width:520px;margin:0 auto;">'
+      +'<div style="background:#0d1b2a;padding:16px 24px;border-radius:12px 12px 0 0;text-align:center;">'
+      +'<span style="font-size:22px;font-weight:900;color:#fff;">Reho<span style="color:#e8a020;">VTU</span></span>'
+      +'</div>'
+      +'<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">'
+      +'<p style="color:#334155;font-size:14px;white-space:pre-wrap;">'+personalBody+'</p>'
+      +'<hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0;">'
+      +'<p style="font-size:11px;color:#94a3b8;">RehoVTU Team · rehovtu@gmail.com · 09037066499</p>'
+      +'</div></div>';
+    const ok = await sendEmail(r.email, r.name, subject, htmlBody);
+    if(ok) sent++; else failed++;
+    resultEl.innerHTML = '<div style="font-size:13px;color:#1a3a8f;">⏳ Sending... '+sent+'/'+recipients.length+'</div>';
+  }
+
+  resultEl.innerHTML = '<div style="font-size:13px;font-weight:700;color:'+(failed===0?'#1a6b3c':'#b91c1c')+';">'
+    +(failed===0?'✅ All '+sent+' emails sent successfully!':'✅ '+sent+' sent, ❌ '+failed+' failed')+'</div>';
+}
+
 function renderAdminTools(){
   const html = '<div class="sec-title">Admin Tools</div>' +
+
+    '<div class="card" style="border-left:4px solid #1a3a8f;margin-bottom:10px;">' +
+      '<div style="font-weight:700;margin-bottom:4px;font-size:14px;">📧 Bulk Email</div>' +
+      '<div style="font-size:12px;color:var(--gray);margin-bottom:10px;">Send email to all members, specific roles, or site owners. Supports personalisation with {name}.</div>' +
+      '<button class="btn btn-primary btn-full" onclick="openBulkEmail()">📧 Send Bulk Email</button>' +
+    '</div>' +
 
     '<div class="card" style="border-left:4px solid var(--gold);margin-bottom:10px;">' +
       '<div style="font-weight:700;margin-bottom:4px;font-size:14px;">📡 Firebase Orders Sync</div>' +
