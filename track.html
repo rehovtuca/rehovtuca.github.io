@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>RehoVTU — Track Your Order</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1b2a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .card{background:#fff;border-radius:20px;padding:28px 24px;width:100%;max-width:420px;}
+  .logo{text-align:center;margin-bottom:24px;}
+  .logo-title{font-size:26px;font-weight:900;color:#0d1b2a;}
+  .logo-title span{color:#f5b944;}
+  .logo-sub{font-size:12px;color:#666;margin-top:4px;}
+  h2{font-size:18px;font-weight:800;color:#0d1b2a;margin-bottom:6px;}
+  p{font-size:13px;color:#666;margin-bottom:20px;}
+  input{width:100%;padding:12px 14px;border:2px solid #e2e8f0;border-radius:10px;font-size:14px;margin-bottom:12px;outline:none;transition:border .2s;}
+  input:focus{border-color:#f5b944;}
+  button{width:100%;padding:13px;background:#f5b944;border:none;border-radius:10px;font-size:15px;font-weight:800;color:#0d1b2a;cursor:pointer;}
+  button:active{opacity:.9;}
+  .result{margin-top:20px;}
+  .status-card{background:#f8fafc;border-radius:14px;padding:16px;margin-top:16px;}
+  .status-badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;margin-bottom:12px;}
+  .badge-pending{background:#fff8e0;color:#92600a;}
+  .badge-building{background:#e0f0ff;color:#1a3a8f;}
+  .badge-done{background:#d4f0e0;color:#1a6b3c;}
+  .badge-failed{background:#fee2e2;color:#b91c1c;}
+  .info-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #e2e8f0;font-size:13px;}
+  .info-row:last-child{border:none;}
+  .info-label{color:#666;}
+  .info-val{font-weight:700;color:#0d1b2a;}
+  .step{display:flex;gap:12px;align-items:flex-start;padding:10px 0;}
+  .step-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;margin-top:2px;}
+  .step-done{background:#d4f0e0;color:#1a6b3c;}
+  .step-active{background:#f5b944;color:#0d1b2a;}
+  .step-pending{background:#e2e8f0;color:#666;}
+  .step-text{font-size:13px;}
+  .step-title{font-weight:700;}
+  .step-sub{font-size:11px;color:#666;margin-top:2px;}
+  .error{background:#fee2e2;color:#b91c1c;padding:12px;border-radius:10px;font-size:13px;margin-top:12px;text-align:center;}
+  .loading{text-align:center;color:#666;font-size:13px;margin-top:16px;}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <div class="logo-title">Reho<span>VTU</span></div>
+    <div class="logo-sub">Order Status Tracker</div>
+  </div>
+  <h2>Track Your Order</h2>
+  <p>Enter your phone number or email to check the status of your VTU site order.</p>
+  <input id="search" type="text" placeholder="Phone number or email address" oninput="clearResult()">
+  <button onclick="trackOrder()">🔍 Track Order</button>
+  <div id="result"></div>
+</div>
+
+<script>
+const FB_URL='https://rehovtu-default-rtdb.firebaseio.com';
+
+async function fbGet(path){
+  const r=await fetch(FB_URL+'/'+path+'.json');
+  return r.json();
+}
+
+function clearResult(){document.getElementById('result').innerHTML='';}
+
+async function trackOrder(){
+  const q=document.getElementById('search').value.trim().toLowerCase();
+  if(!q){alert('Enter your phone number or email.');return;}
+  const res=document.getElementById('result');
+  res.innerHTML='<div class="loading">⏳ Searching...</div>';
+  
+  try{
+    const orders=await fbGet('orders');
+    if(!orders||!Array.isArray(orders)){
+      res.innerHTML='<div class="error">No orders found. Please try again.</div>';
+      return;
+    }
+    
+    const found=orders.filter(o=>
+      (o.phone&&o.phone.replace(/\s/g,'')===q.replace(/\s/g,''))||
+      (o.email&&o.email.toLowerCase()===q)
+    );
+    
+    if(found.length===0){
+      res.innerHTML='<div class="error">No order found with that phone/email.<br>Check your details and try again.</div>';
+      return;
+    }
+
+    const latest=found.sort((a,b)=>(b.id||'').localeCompare(a.id||''))[0];
+    
+    const statusMap={
+      pending:{label:'Payment Pending',badge:'badge-pending',icon:'⏳'},
+      confirmed:{label:'Payment Confirmed',badge:'badge-building',icon:'✅'},
+      building:{label:'Site Being Built',badge:'badge-building',icon:'🏗'},
+      done:{label:'Site Live!',badge:'badge-done',icon:'🎉'},
+    };
+    
+    let statusKey='pending';
+    if(latest.approved) statusKey='done';
+    else if(latest.paymentConfirmed) statusKey='building';
+    else if(latest.status==='confirmed') statusKey='confirmed';
+    
+    const s=statusMap[statusKey];
+    
+    const steps=[
+      {title:'Order Placed',sub:'We received your order',done:true},
+      {title:'Payment Confirmed',sub:'Your payment has been verified',done:latest.paymentConfirmed||latest.approved},
+      {title:'Site Being Built',sub:'Our team is building your site',done:latest.assignedBuilder||latest.approved,active:!!(latest.paymentConfirmed&&!latest.approved)},
+      {title:'Site Delivered',sub:'Your login details sent to your email',done:!!latest.approved},
+    ];
+
+    res.innerHTML=`
+      <div class="result">
+        <div class="status-card">
+          <span class="status-badge ${s.badge}">${s.icon} ${s.label}</span>
+          <div class="info-row"><span class="info-label">Name</span><span class="info-val">${latest.name}</span></div>
+          <div class="info-row"><span class="info-label">Phone</span><span class="info-val">${latest.phone}</span></div>
+          <div class="info-row"><span class="info-label">Order Date</span><span class="info-val">${latest.date||'—'}</span></div>
+          ${latest.sitename?`<div class="info-row"><span class="info-label">Site Name</span><span class="info-val">${latest.sitename}</span></div>`:''}
+          ${latest.siteLink?`<div class="info-row"><span class="info-label">Site Link</span><span class="info-val"><a href="${latest.siteLink}" target="_blank" style="color:#1a3a8f;">${latest.siteLink}</a></span></div>`:''}
+        </div>
+        
+        <div style="margin-top:16px;padding:0 4px;">
+          ${steps.map((step,i)=>`
+          <div class="step">
+            <div class="step-icon ${step.done?'step-done':step.active?'step-active':'step-pending'}">${step.done?'✓':step.active?'→':(i+1)}</div>
+            <div class="step-text">
+              <div class="step-title" style="color:${step.done?'#1a6b3c':step.active?'#92600a':'#999'}">${step.title}</div>
+              <div class="step-sub">${step.sub}</div>
+            </div>
+          </div>`).join('')}
+        </div>
+        
+        ${statusKey==='done'?`
+        <div style="background:#d4f0e0;border-radius:10px;padding:14px;margin-top:12px;text-align:center;">
+          <div style="font-size:24px;margin-bottom:6px;">🎉</div>
+          <div style="font-weight:800;color:#1a6b3c;">Your site is LIVE!</div>
+          <div style="font-size:12px;color:#1a6b3c;margin-top:4px;">Check your email for login details</div>
+          ${latest.siteLink?`<a href="${latest.siteLink}" target="_blank" style="display:block;margin-top:10px;background:#1a6b3c;color:#fff;padding:10px;border-radius:8px;font-weight:700;text-decoration:none;">Visit My Site →</a>`:''}
+        </div>`:''}
+
+        ${found.length>1?`<div style="font-size:12px;color:#666;text-align:center;margin-top:12px;">Showing latest of ${found.length} orders</div>`:''}
+      </div>`;
+  }catch(e){
+    res.innerHTML='<div class="error">Error loading data. Check your connection and try again.</div>';
+    console.error(e);
+  }
+}
+
+document.getElementById('search').addEventListener('keydown',e=>{if(e.key==='Enter')trackOrder();});
+</script>
+</body>
+</html>

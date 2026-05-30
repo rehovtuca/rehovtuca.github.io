@@ -538,7 +538,9 @@ async function dbSet(k,v){
 // ═══════════════════════════════════════════════════════════
 // CONSTANTS
 // ═══════════════════════════════════════════════════════════
-const ROLES={founder:'Founder',pfc:'Project & Finance Coordinator',pm:'State Project Manager',cc:'Campus Coordinator',ambassador:'Ambassador'};
+const ROLES={founder:'Founder',pfc:'Project & Finance Coordinator',pm:'State Project Manager',cc:'Campus Coordinator',ambassador:'Ambassador',builder:'Site Builder'};
+const BUILDER_PAY_PER_SITE=20; // ₦20 per site built
+const CYCLE_DAY=25; // Monthly reset on 25th
 const ROLE_SHORT={founder:'FD',pfc:'PF',pm:'PM',cc:'CC',ambassador:'AM'};
 const PREFIXES={pfc:'PF',pm:'PM',cc:'CC',ambassador:'AM'};
 const ROLE_ORDER=['founder','pfc','pm','cc','ambassador'];
@@ -894,6 +896,8 @@ async function doRegister(){
       </div>
       <p style="font-size:13px;color:#334155;">Log in at <a href="https://rehovtuca.github.io" style="color:#1a3a8f;font-weight:700;">rehovtuca.github.io</a> using your email and password.</p>
       <p style="font-size:13px;color:#334155;">Your referral link: <code style="background:#f8fafc;padding:2px 6px;border-radius:4px;font-size:12px;">rehovtuca.github.io/?ref=${code}&amp;join=${DOWNLINE[role]||'ambassador'}</code></p>
+    <p style="font-size:13px;color:#334155;margin-top:8px;">🌐 VTU Site Order link: <code style="background:#fff8e0;padding:2px 6px;border-radius:4px;font-size:12px;">rehovtuca.github.io/?siteref=${code}</code><br><span style="font-size:11px;color:#888;">Share this — earn commission when someone orders a site through you!</span></p>
+    ${renderWASection(m)}
     `+regFooter);
 
   // Notify the upline member that someone joined under them
@@ -959,7 +963,7 @@ function getTabs(){
     {id:'commissions',label:'🏆 Commissions'},{id:'fines',label:'⚠️ Fines'},
     {id:'reports',label:'📑 Reports'},
     {id:'logs',label:'📝 Logs'},
-    {id:'excel',label:'📊 Excel'},{id:'orders',label:'🛒 Orders'},{id:'admin',label:'🔧 Tools'},
+    {id:'excel',label:'📊 Excel'},{id:'orders',label:'🛒 Orders'},{id:'builders',label:'🏗 Builders'},{id:'monthly',label:'📅 Monthly'},{id:'admin',label:'🔧 Tools'},
   ];
   return [
     {id:'dashboard',label:'📊 My Stats'},
@@ -993,6 +997,10 @@ async function showApp(){
   buildNav();
   await renderTab(currentTab);
   setTimeout(checkAndApplyFines,3000);
+  setTimeout(checkMonthlyCycle,5000); // Check if 25th cycle reset needed
+  // Track site referral from URL
+  const _urlSiteRef=new URLSearchParams(window.location.search).get('siteref');
+  if(_urlSiteRef) sessionStorage.setItem('siteref',_urlSiteRef);
   setTimeout(loadBellCount,1000);
   setInterval(loadBellCount,60000);
   setInterval(checkAndApplyFines,300000);
@@ -1009,6 +1017,8 @@ async function showApp(){
     else if(action === 'approveOrder')   await approveOrder(oid);
     else if(action === 'openSiteDelivery') await openSiteDelivery(oid);
     else if(action === 'deleteOrder')    await deleteOrder(oid);
+    else if(action === 'removeFine')     await removeFine(oid);
+    else if(action === 'assignBuilder')  await assignOrderToBuilder(oid);
   });
 }
 
@@ -1034,11 +1044,13 @@ async function renderTab(tab){
       case 'excel':       content.innerHTML=renderExcelTab();break;
       case 'orders':      content.innerHTML=await renderOrdersTab();break;
       case 'fines':       content.innerHTML=await renderFinesTab();break;
+      case 'monthly':     content.innerHTML=await renderMonthlyCycleTab();break;
+      case 'builders':    content.innerHTML=await renderBuildersTab();break;
       case 'admin':       content.innerHTML=renderAdminTools();break;
     }
   } else {
     switch(tab){
-      case 'dashboard': content.innerHTML=await renderMemberDash();break;
+      case 'dashboard': content.innerHTML=currentUser.role==='builder'?await renderBuilderDash():await renderMemberDash();break;
       case 'myteam':    content.innerHTML=await renderMyTeam();break;
       case 'signups':   content.innerHTML=await renderSignupsTab();break;
       case 'reports':   content.innerHTML=await renderReports();break;
@@ -1142,6 +1154,7 @@ async function openMemberDetail(code){
   const owed=Math.max(0,earned-paid);
   const recentLogs=logs.filter(l=>l.memberCode===m.code).slice(0,4);
   const refLink=`${location.origin}${location.pathname}?ref=${m.code}&join=${DOWNLINE[m.role]||'ambassador'}`;
+  const siteRefLink=`${location.origin}${location.pathname}?siteref=${m.code}`;
   openSheet(`
     <div class="sheet-title">${m.name}<button class="close-btn" onclick="closeSheet()">✕</button></div>
     <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">${ava(m,46)}
@@ -1168,6 +1181,7 @@ async function openMemberDetail(code){
       <button class="btn btn-primary btn-sm" onclick="openLogPayment('${m.code}')">💰 Log Payment</button>
       <button class="btn btn-gold btn-sm" onclick="openEditMember('${m.code}')">✏️ Edit</button>
       <button class="btn btn-gray btn-sm" onclick="openPromoteDemote('${m.code}')">⬆⬇ Promote/Demote</button>
+      <button class="btn btn-gray btn-sm" style="background:#e0f0ff;color:#1a3a8f;" onclick="viewMemberActivity('${m.code}')">📋 Activity</button>
       <button class="btn btn-gray btn-sm" onclick="openTransfer('${m.code}')">🔀 Transfer</button>
       <button class="btn btn-gray btn-sm" onclick="openChangePassword('${m.code}')">🔑 Change Password</button>
       <button class="btn btn-danger btn-sm" onclick="deleteMember('${m.code}')">🗑 Remove</button>
@@ -1875,6 +1889,101 @@ async function importExcel(input){
 // ═══════════════════════════════════════════════════════════
 // MEMBER DASHBOARD
 // ═══════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// WHATSAPP MESSAGE GENERATOR
+// ═══════════════════════════════════════════════════════════
+function getWAMessages(member){
+  var base=location.origin+location.pathname.replace('index.html','');
+  var sr=base+'?siteref='+member.code;
+  var rl=base+'?ref='+member.code+'&join='+(DOWNLINE[member.role]||'ambassador');
+  var n='\n';
+  var t1='Hey! Are you looking for a way to earn daily income online?'+n+n+'You can OWN your own VTU business website for just N2,000!'+n+n+'What you get:'+n+'- Your own data and airtime website'+n+'- Live within 48 hours'+n+'- Earn daily from your customers'+n+'- Zero physical presence needed'+n+n+'Get started here:'+n+sr+n+n+'Reach out if you have questions!';
+  var t2='Hey! Join my RehoVTU team and start earning real money!'+n+n+'What you earn:'+n+'- N600 per customer sign-up'+n+'- Monthly team bonuses'+n+'- Build your own downline'+n+n+'No experience needed. I will guide you.'+n+n+'Register here:'+n+rl+n+n+'Let me know when you join!';
+  var t3='REHOVTU OPPORTUNITY'+n+n+'Two ways to make money with RehoVTU:'+n+n+'1. Get your own VTU website (N2,000 once)'+n+'   '+sr+n+n+'2. Join as a sales agent (FREE)'+n+'   '+rl+n+n+'Legitimate, no hidden fees. Reach out for more info!';
+  return [
+    {label:'VTU Site Promo',emoji:'🌐',bg:'#25D366',text:t1},
+    {label:'Recruit Members',emoji:'👥',bg:'#128C7E',text:t2},
+    {label:'General Promo',emoji:'🔥',bg:'#075E54',text:t3}
+  ];
+}
+
+function copyWAMessage(memberCode, idx){
+  const members = window._membersCache || [];
+  const member = members.find(m=>m.code===memberCode) || currentUser;
+  const msgs = getWAMessages(member);
+  const msg = msgs[idx];
+  if(!msg){ alert('Message not ready.'); return; }
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(msg.text)
+      .then(()=>alert('Copied! Paste it in WhatsApp now.'))
+      .catch(()=>{ prompt('Copy this:', msg.text); });
+  } else {
+    prompt('Copy this:', msg.text);
+  }
+}
+
+function renderWASection(member){
+  const msgs = getWAMessages(member);
+  return '<div style="margin-top:16px;">'
+    + '<div style="font-weight:800;font-size:14px;margin-bottom:10px;">Share &amp; Earn</div>'
+    + '<div style="display:flex;flex-direction:column;gap:8px;">'
+    + msgs.map(function(m, i){
+        return '<button class="btn btn-sm"'
+          + ' style="width:100%;background:' + m.bg + ';color:#fff;border:none;'
+          + 'padding:11px;border-radius:10px;font-weight:700;font-size:13px;text-align:left;"'
+          + ' onclick="copyWAMessage(\'' + member.code + '\',' + i + ')">'  
+          + m.emoji + ' Copy ' + m.label + '</button>';
+      }).join('')
+    + '</div></div>';
+}
+
+async function renderBuilderDash(){
+  const [members,orders]=await Promise.all([getMembers(),getOrders()]);
+  const me=currentUser;
+  const myOrders=orders.filter(o=>o.assignedBuilder===me.code);
+  const active=myOrders.filter(o=>o.builderStatus!=='complete');
+  const done=myOrders.filter(o=>o.builderStatus==='complete');
+
+  return`
+    <div style="background:linear-gradient(135deg,#1a2942,#2d4a7a);color:#fff;padding:20px;border-radius:16px;margin-bottom:16px;">
+      <div style="font-size:20px;font-weight:800;">Welcome, ${me.name}!</div>
+      <div style="font-size:12px;opacity:0.8;margin-top:4px;">Builder · ${me.code}</div>
+      <div style="display:flex;gap:12px;margin-top:16px;">
+        <div style="flex:1;background:rgba(255,255,255,0.1);border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:22px;font-weight:800;">${active.length}</div>
+          <div style="font-size:11px;opacity:0.8;">Active Orders</div>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,0.1);border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:22px;font-weight:800;">${me.sitesBuilt||0}</div>
+          <div style="font-size:11px;opacity:0.8;">Sites Built</div>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,0.1);border-radius:10px;padding:12px;text-align:center;">
+          <div style="font-size:22px;font-weight:800;">₦${(me.builderEarnings||0).toLocaleString()}</div>
+          <div style="font-size:11px;opacity:0.8;">This Month</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="sec-title">📋 My Assigned Orders</div>
+    ${active.length===0?'<div class="empty"><div style="font-size:28px">✅</div><div>No active orders assigned to you</div></div>':''}
+    ${active.map(o=>`
+    <div class="card" style="margin-bottom:10px;border-left:3px solid var(--gold);">
+      <div style="font-weight:700;font-size:14px;">${o.name}</div>
+      <div style="font-size:12px;color:var(--muted);">${o.phone} · ${o.email||'No email'}</div>
+      ${o.sitename?`<div style="font-size:12px;margin-top:4px;">Site name: <b>${o.sitename}</b></div>`:''}
+      <div style="display:flex;gap:8px;margin-top:10px;">
+        <button class="btn btn-primary btn-sm" style="flex:1;" data-action="openSiteDelivery" data-oid="${o.id}">📤 Send Site Details</button>
+      </div>
+    </div>`).join('')}
+
+    ${done.length>0?`
+    <div class="sec-title" style="margin-top:16px;">✅ Completed (${done.length})</div>
+    ${done.slice(0,5).map(o=>`
+    <div class="card" style="margin-bottom:6px;opacity:0.7;">
+      <div style="font-size:13px;font-weight:600;">${o.name} <span style="color:var(--green);font-size:11px;">✅ Done</span></div>
+    </div>`).join('')}`:''}`;
+}
+
 async function renderMemberDash(){
   const [members,signups,payments,reports,fines]=await Promise.all([getMembers(),getSignups(),getPayments(),getReports(),getFines()]);
   const m=currentUser;
@@ -2044,7 +2153,8 @@ async function renderMemberDash(){
         <div style="display:flex;justify-content:space-between"><b>${r.type}</b><span style="color:var(--muted);font-size:11px">${r.date}</span></div>
         <div style="color:var(--gray);margin-top:3px">${r.signups||0} sign-ups · ${r.calls||0} calls</div>
         ${r.reply?`<div style="font-size:12px;background:var(--green-light);color:var(--green);margin-top:6px;padding:6px 8px;border-radius:6px"><b>Founder:</b> ${r.reply}</div>`:''}
-      </div>`).join('')}`:''}`;
+      </div>`).join('')}`:''}    <div style="height:40px;"></div>
+  `;
 }
 
 // Share referral
@@ -2232,6 +2342,172 @@ const FINE_RULES={
   pfc:{deadline:22,fine:3000,label:'10:00 PM'},
 };
 
+// ═══════════════════════════════════════════════════════════
+// MONTHLY CYCLE SYSTEM
+// ═══════════════════════════════════════════════════════════
+function getCurrentCycle(){
+  const now=new Date();
+  const y=now.getFullYear();
+  const m=now.getMonth()+1;
+  const d=now.getDate();
+  // Cycle runs from 25th to 24th of next month
+  // e.g. if today is Jan 26, cycle label is "2024-01"
+  // if today is Jan 20 (before 25th), cycle label is "2023-12"
+  if(d>=CYCLE_DAY){
+    return `${y}-${String(m).padStart(2,'0')}`;
+  } else {
+    const prev=new Date(y,m-2,1);
+    return `${prev.getFullYear()}-${String(prev.getMonth()+1).padStart(2,'0')}`;
+  }
+}
+
+function getCycleLabel(cycleKey){
+  const [y,m]=cycleKey.split('-');
+  const months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${months[parseInt(m)-1]} ${y}`;
+}
+
+async function getMonthlySnapshots(){
+  try{ const s=await FB.get('monthly_snapshots'); if(s) return s; }catch{}
+  return LS.get('monthly_snapshots')||{};
+}
+async function saveMonthlySnapshots(s){
+  LS.set('monthly_snapshots',s);
+  try{ await FB.set('monthly_snapshots',s); }catch(e){ console.warn('Snapshot save failed:',e); }
+}
+
+async function checkMonthlyCycle(){
+  const now=new Date();
+  const thisCycle=getCurrentCycle();
+  const lastReset=LS.get('lastCycleReset');
+
+  // 3-day pre-reset warning
+  const daysLeft=CYCLE_DAY-now.getDate();
+  const lastWarning=LS.get('lastCycleWarning');
+  if(daysLeft===3 && lastWarning!==thisCycle && currentUser.role==='founder'){
+    LS.set('lastCycleWarning',thisCycle);
+    alert('⚠️ REMINDER: Monthly reset is in 3 days ('+CYCLE_DAY+'th)!\n\nMake sure to review pending payouts before the reset.\n\nGo to the 📅 Monthly tab to download the report now.');
+    // Email all members warning
+    const members=await getMembers();
+    for(const m of members.filter(x=>x.role!=='founder'&&x.email)){
+      sendEmail(m.email,m.name,'⏰ RehoVTU — 3 Days to Month End!',
+        '<p>Hi '+m.name+',</p>'+
+        '<p>The current RehoVTU cycle ends in <b>3 days</b> on the '+CYCLE_DAY+'th.</p>'+
+        '<p>Your current earnings: <b>₦'+(m.balance||0).toLocaleString()+'</b></p>'+
+        '<p>Push hard these last 3 days — every sign-up counts! 💪</p>'+
+        '<p>RehoVTU Team</p>'
+      );
+    }
+  }
+
+  if(now.getDate()!==CYCLE_DAY) return;
+  if(lastReset===thisCycle) return; // Already reset this cycle
+
+  const members=await getMembers();
+  const fines=await getFines();
+  const snapshots=await getMonthlySnapshots();
+
+  // Save snapshot of this cycle before resetting
+  const snapshot={
+    cycle:thisCycle,
+    label:getCycleLabel(thisCycle),
+    date:today(),
+    members:members.map(m=>({
+      code:m.code,name:m.name,role:m.role,
+      bank:m.bank,accNum:m.accNum,accName:m.accName,
+      balance:m.balance||0,
+      fines:fines.filter(f=>f.memberCode===m.code).reduce((s,f)=>s+f.amount,0),
+      sitesBuilt:m.sitesBuilt||0,
+      builderEarnings:m.builderEarnings||0
+    }))
+  };
+  snapshots[thisCycle]=snapshot;
+  await saveMonthlySnapshots(snapshots);
+
+  // AUTO-DOWNLOAD CSV immediately before reset
+  if(currentUser.role==='founder'){
+    let csv='Name,Code,Role,Bank,Account Number,Account Name,Earnings(NGN),Fines(NGN),Sites_Built,Builder_Pay(NGN)\n';
+    snapshot.members.forEach(m=>{
+      csv+=`"${m.name}","${m.code}","${m.role}","${m.bank||''}","${m.accNum||''}","${m.accName||''}",${m.balance||0},${m.fines||0},${m.sitesBuilt||0},${m.builderEarnings||0}\n`;
+    });
+    const blob=new Blob([csv],{type:'text/csv'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url; a.download=`RehoVTU_${snapshot.label.replace(' ','_')}_AutoReport.csv`;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a); URL.revokeObjectURL(url);
+  }
+
+  // Reset all balances to 0, move to pendingPayout
+  const updated=members.map(m=>({
+    ...m,
+    pendingPayout:(m.pendingPayout||0)+(m.balance||0),
+    balance:0,
+    sitesBuilt:0,
+    builderEarnings:0
+  }));
+  await saveMembers(updated);
+
+  // Clear fines
+  await saveFines([]);
+
+  // Mark reset done
+  LS.set('lastCycleReset',thisCycle);
+
+  // Notify all members
+  for(const m of members.filter(x=>x.role!=='founder'&&x.email)){
+    sendEmail(m.email,m.name,'🎉 New RehoVTU Month — Fresh Start!',
+      '<p>Hi '+m.name+',</p>'+
+      '<p>A new RehoVTU cycle has started! Your balance for <b>'+getCycleLabel(thisCycle)+'</b> has been processed.</p>'+
+      '<p>Your earnings of <b>₦'+(m.balance||0).toLocaleString()+'</b> have been moved to <b>Pending Payout</b> and will be processed by the Founder.</p>'+
+      '<p>Start fresh — new goals, new earnings! 💪</p>'+
+      '<p>RehoVTU Team</p>'
+    );
+  }
+
+  alert('🔄 Monthly cycle reset complete! All balances moved to pending payout. Snapshots saved.');
+}
+
+async function downloadMonthlyReport(cycleKey){
+  const snapshots=await getMonthlySnapshots();
+  const snap=snapshots[cycleKey];
+  if(!snap){alert('No snapshot found for this period.');return;}
+
+  let csv='Name,Code,Role,Bank,Account Number,Account Name,Earnings(NGN),Fines(NGN),Net_Payout(NGN),Sites_Built,Builder_Pay(NGN)\n';
+  snap.members.forEach(m=>{
+    const net=(m.balance||0)-(m.fines||0)+(m.builderEarnings||0);
+    csv+=`"${m.name}","${m.code}","${m.role}","${m.bank||''}","${m.accNum||''}","${m.accName||''}",${m.balance||0},${m.fines||0},${net},${m.sitesBuilt||0},${m.builderEarnings||0}
+`;
+  });
+
+  const blob=new Blob([csv],{type:'text/csv'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url; a.download=`RehoVTU_${snap.label.replace(' ','_')}_Report.csv`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+async function renderMonthlyHistory(){
+  const snapshots=await getMonthlySnapshots();
+  const keys=Object.keys(snapshots).sort().reverse();
+  if(keys.length===0) return '<div class="empty">No monthly records yet</div>';
+  return keys.map(k=>{
+    const s=snapshots[k];
+    const total=s.members.reduce((sum,m)=>sum+(m.balance||0),0);
+    const totalFines=s.members.reduce((sum,m)=>sum+(m.fines||0),0);
+    return`<div class="card" style="margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-weight:800;font-size:14px;">${s.label}</div>
+          <div style="font-size:11px;color:var(--muted);">${s.members.length} members · ₦${total.toLocaleString()} paid · ₦${totalFines.toLocaleString()} fined</div>
+        </div>
+        <button class="btn btn-sm" style="background:var(--green);color:#fff;border:none;" onclick="downloadMonthlyReport('${k}')">⬇ Download</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
 async function getFines(){try{const f=await FB.get('fines');if(f){LS.set('fines',f);return f;}}catch{}return LS.get('fines')||[];}
 async function saveFines(f){LS.set('fines',f);await FB.set('fines',f);}
 
@@ -2253,10 +2529,125 @@ async function checkAndApplyFines(){
   if(changed)await saveFines(fines);
 }
 
+// ═══════════════════════════════════════════════════════════
+// MEMBER ACTIVITY LOG
+// ═══════════════════════════════════════════════════════════
+async function viewMemberActivity(code){
+  const [members,signups,fines,orders,payments]=await Promise.all([
+    getMembers(),getSignups(),getFines(),getOrders(),getPayments()
+  ]);
+  const m=members.find(x=>x.code===code);
+  if(!m){alert('Member not found.');return;}
+
+  const memberFines=fines.filter(f=>f.memberCode===code);
+  const memberSignups=signups.filter(s=>s.uplineCode===code||s.referralCode===code);
+  const memberOrders=orders.filter(o=>o.referredBy===code||o.source===code);
+  const memberPayments=payments.filter(p=>p.memberCode===code);
+
+  const totalFines=memberFines.reduce((s,f)=>s+f.amount,0);
+  const totalComm=memberPayments.reduce((s,p)=>s+(p.amount||0),0);
+
+  // Build timeline
+  let events=[];
+  memberFines.forEach(f=>events.push({date:f.date,type:'fine',icon:'⚠️',text:`Fine: ${f.reason} — ₦${f.amount.toLocaleString()}`,color:'#b91c1c'}));
+  memberSignups.forEach(s=>events.push({date:s.date,type:'signup',icon:'👤',text:`Sign-up: ${s.name}`,color:'#1a6b3c'}));
+  memberOrders.forEach(o=>events.push({date:o.date||'',type:'order',icon:'🛒',text:`Site order referred: ${o.name}`,color:'#1a3a8f'}));
+  memberPayments.forEach(p=>events.push({date:p.date,type:'payment',icon:'💰',text:`Commission: ₦${(p.amount||0).toLocaleString()}`,color:'#92600a'}));
+  events.sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  openSheet(`<div class="sheet-title">${m.name} — Activity Log<button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:80px;background:#f8fafc;border-radius:8px;padding:8px;text-align:center;">
+        <div style="font-size:18px;font-weight:800;color:var(--green);">₦${(m.balance||0).toLocaleString()}</div>
+        <div style="font-size:10px;color:var(--muted);">Balance</div>
+      </div>
+      <div style="flex:1;min-width:80px;background:#f8fafc;border-radius:8px;padding:8px;text-align:center;">
+        <div style="font-size:18px;font-weight:800;color:#b91c1c;">₦${totalFines.toLocaleString()}</div>
+        <div style="font-size:10px;color:var(--muted);">Total Fined</div>
+      </div>
+      <div style="flex:1;min-width:80px;background:#f8fafc;border-radius:8px;padding:8px;text-align:center;">
+        <div style="font-size:18px;font-weight:800;color:var(--primary);">${memberSignups.length}</div>
+        <div style="font-size:10px;color:var(--muted);">Sign-ups</div>
+      </div>
+      <div style="flex:1;min-width:80px;background:#f8fafc;border-radius:8px;padding:8px;text-align:center;">
+        <div style="font-size:18px;font-weight:800;color:var(--gold);">${memberOrders.length}</div>
+        <div style="font-size:10px;color:var(--muted);">Site Orders</div>
+      </div>
+    </div>
+    <div style="font-weight:700;font-size:13px;margin-bottom:8px;">Timeline</div>
+    ${events.length===0?'<div class="empty">No activity yet</div>':
+      events.slice(0,50).map(e=>`
+      <div style="display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);">
+        <div style="font-size:16px;">${e.icon}</div>
+        <div style="flex:1;">
+          <div style="font-size:12px;font-weight:600;color:${e.color};">${e.text}</div>
+          <div style="font-size:10px;color:var(--muted);">${e.date||'—'}</div>
+        </div>
+      </div>`).join('')}
+  `);
+}
+
+// Global fines search state
+let _fineSearch='';
+let _fineRoleFilter='all';
+
 async function renderFinesTab(){
   const [members,fines]=await Promise.all([getMembers(),getFines()]);
-  const sorted=[...fines].sort((a,b)=>b.date.localeCompare(a.date));
   const total=fines.reduce((s,f)=>s+f.amount,0);
+
+  // Role labels
+  const roleLabel={founder:'Founder',pfc:'PFC',pm:'PM',cc:'CC',ambassador:'Ambassador',builder:'Builder'};
+  const roleOrder=['pfc','pm','cc','ambassador','builder'];
+
+  // Filter by search + role
+  const search=(_fineSearch||'').toLowerCase();
+  const roleF=_fineRoleFilter||'all';
+  const filtered=fines.filter(f=>{
+    const mem=members.find(x=>x.code===f.memberCode);
+    const name=(mem?mem.name:f.memberCode).toLowerCase();
+    const code=(f.memberCode||'').toLowerCase();
+    const matchSearch=!search||name.includes(search)||code.includes(search)||f.reason.toLowerCase().includes(search);
+    const matchRole=roleF==='all'||(mem&&mem.role===roleF);
+    return matchSearch&&matchRole;
+  });
+
+  // Group by role
+  const grouped={};
+  roleOrder.forEach(r=>{ grouped[r]=[]; });
+  grouped['other']=[];
+  filtered.forEach(f=>{
+    const mem=members.find(x=>x.code===f.memberCode);
+    const r=mem?mem.role:'other';
+    if(grouped[r]) grouped[r].push(f);
+    else grouped['other'].push(f);
+  });
+
+  const renderCard=(f)=>{
+    const mem=members.find(x=>x.code===f.memberCode);
+    return`<div class="card" style="border-left:3px solid var(--red);margin-bottom:8px;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13px">${mem?mem.name:f.memberCode}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px">${f.memberCode} · ${f.date} · ${f.reason}</div>
+          <span style="font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700;${f.auto?'background:#fee2e2;color:#b91c1c':'background:#e0f0ff;color:#1a3a8f'}">${f.auto?'AUTO':'MANUAL'}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:8px">
+          <div class="neg mono" style="font-size:15px">₦${f.amount.toLocaleString()}</div>
+          <button data-action="removeFine" data-oid="${f.id}" style="background:#fee2e2;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:13px;color:#b91c1c;font-weight:700;">✕</button>
+        </div>
+      </div>
+    </div>`;
+  };
+
+  const roleSections=roleOrder.map(r=>{
+    const arr=[...grouped[r]].sort((a,b)=>b.date.localeCompare(a.date));
+    if(arr.length===0) return '';
+    return`<div style="margin-bottom:16px;">
+      <div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;padding:4px 8px;background:var(--surface);border-radius:6px;">${roleLabel[r]||r} — ${arr.length} fine${arr.length!==1?'s':''}</div>
+      ${arr.map(renderCard).join('')}
+    </div>`;
+  }).join('');
+
   return`
     <div class="sec-title">Penalty Records
       <div style="display:flex;gap:6px;">
@@ -2272,22 +2663,23 @@ async function renderFinesTab(){
       ⏰ Auto-applied daily if report not submitted:<br>
       Ambassador 7PM (₦500) · CC 8PM (₦1,000) · PM 9PM (₦2,000) · PFC 10PM (₦3,000)
     </div>
-    ${sorted.length===0?'<div class="empty"><div style="font-size:28px">✅</div><div>No fines recorded</div></div>':''}
-    ${sorted.map(f=>{
-      const mem=members.find(x=>x.code===f.memberCode);
-      return`<div class="card" style="border-left:3px solid var(--red)">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start">
-          <div style="flex:1;min-width:0">
-            <div style="font-weight:700;font-size:13px">${mem?mem.name:f.memberCode}</div>
-            <div style="font-size:11px;color:var(--muted);margin-top:2px">${f.date} · ${f.reason}</div>
-            <span style="font-size:10px;padding:2px 6px;border-radius:4px;font-weight:700;${f.auto?'background:#fee2e2;color:#b91c1c':'background:#e0f0ff;color:#1a3a8f'}">${f.auto?'AUTO':'MANUAL'}</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:8px">
-            <div class="neg mono" style="font-size:15px">₦${f.amount.toLocaleString()}</div>
-            <button onclick="removeFine('${f.id}')" style="background:#fee2e2;border:none;border-radius:6px;padding:4px 8px;cursor:pointer;font-size:13px;color:#b91c1c;font-weight:700;" title="Remove fine">✕</button>
-          </div>
-        </div>
-      </div>`;}).join('')}`;
+
+    <!-- Search + Role Filter -->
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <input class="fi" placeholder="🔍 Search name, code, reason..." value="${_fineSearch}"
+        oninput="_fineSearch=this.value;renderTab('fines')" style="flex:1;font-size:13px;">
+      <select class="fsl" onchange="_fineRoleFilter=this.value;renderTab('fines')" style="font-size:12px;min-width:90px;">
+        <option value="all" ${_fineRoleFilter==='all'?'selected':''}>All Roles</option>
+        <option value="pfc" ${_fineRoleFilter==='pfc'?'selected':''}>PFC</option>
+        <option value="pm" ${_fineRoleFilter==='pm'?'selected':''}>PM</option>
+        <option value="cc" ${_fineRoleFilter==='cc'?'selected':''}>CC</option>
+        <option value="ambassador" ${_fineRoleFilter==='ambassador'?'selected':''}>Ambassador</option>
+        <option value="builder" ${_fineRoleFilter==='builder'?'selected':''}>Builder</option>
+      </select>
+    </div>
+
+    ${filtered.length===0?'<div class="empty"><div style="font-size:28px">✅</div><div>'+(search||roleF!=='all'?'No fines match your search':'No fines recorded')+'</div></div>':''}
+    ${roleSections}`;
 }
 
 async function removeFine(id){
@@ -2445,13 +2837,25 @@ async function submitOrder(){
   }
 
   const hasScreenshot=payref.startsWith('data:image')||payref.startsWith('data:application');
+  // Check for site referral in URL or session
+  const _siteRefParam=new URLSearchParams(window.location.search).get('siteref')||sessionStorage.getItem('siteref')||'';
+
+  // Duplicate detection
+  const existingOrders=await getOrders();
+  const dupPhone=existingOrders.find(o=>o.phone===phone&&o.status!=='done');
+  const dupEmail=email&&existingOrders.find(o=>o.email===email&&o.status!=='done');
+  if(dupPhone||dupEmail){
+    const dup=dupPhone||dupEmail;
+    if(!confirm('⚠️ DUPLICATE DETECTED!\n\nA pending order already exists for '+dup.name+' ('+dup.phone+').\n\nContinue anyway?')) return;
+  }
+
   const orderId='O_'+Date.now();
 
   // IMPORTANT: Never store the base64 screenshot in the order object.
   // It can be 500KB+ and will silently fail when saving to Firebase (1MB doc limit).
   // Screenshot is sent via email only.
   const newOrder={
-    id:orderId,name,phone,whatsapp,pin,email,state,sitename,source,
+    id:orderId,name,phone,whatsapp,pin,email,state,sitename,source,referredBy:_siteRefParam||source,
     ref:ref||'',ambassadorCode:amb?amb.code:'',
     treeChain,
     payref:hasScreenshot?'[Screenshot emailed]':'[No screenshot]',
@@ -2709,6 +3113,138 @@ async function exportOrders(){
   XLSX.writeFile(wb,'RehoVTU_Site_Orders_'+today()+'.xlsx');
 }
 
+// ═══════════════════════════════════════════════════════════
+// MONTHLY CYCLE TAB
+// ═══════════════════════════════════════════════════════════
+async function renderMonthlyCycleTab(){
+  const members=await getMembers();
+  const cycle=getCurrentCycle();
+  const label=getCycleLabel(cycle);
+  const now=new Date();
+  const daysLeft=CYCLE_DAY-now.getDate();
+  const totalPending=members.reduce((s,m)=>s+(m.pendingPayout||0),0);
+  const totalBalance=members.filter(m=>m.role!=='founder').reduce((s,m)=>s+(m.balance||0),0);
+  const history=await renderMonthlyHistory();
+
+  return`
+    <div class="sec-title">📅 Monthly Cycle
+      <button class="btn btn-danger btn-sm" onclick="if(confirm('Force monthly reset now? This will snapshot and reset all balances.'))checkMonthlyCycle()">🔄 Force Reset</button>
+    </div>
+    <div class="stats-row">
+      <div class="stat"><div class="stat-label">Current Cycle</div><div class="stat-value" style="font-size:14px">${label}</div></div>
+      <div class="stat ${daysLeft>0?'':'red'}"><div class="stat-label">${daysLeft>0?'Days to Reset':'Reset Day!'}</div><div class="stat-value">${daysLeft>0?daysLeft:'TODAY'}</div></div>
+      <div class="stat gold"><div class="stat-label">Total Earnings</div><div class="stat-value pos" style="font-size:13px">₦${totalBalance.toLocaleString()}</div></div>
+      <div class="stat red"><div class="stat-label">Pending Payout</div><div class="stat-value neg" style="font-size:13px">₦${totalPending.toLocaleString()}</div></div>
+    </div>
+
+    <div class="sec-title" style="margin-top:16px;">💰 Pending Payouts</div>
+    ${members.filter(m=>m.role!=='founder'&&(m.pendingPayout||0)>0).length===0
+      ?'<div class="empty" style="margin-bottom:16px;"><div>No pending payouts</div></div>'
+      :members.filter(m=>m.role!=='founder'&&(m.pendingPayout||0)>0).sort((a,b)=>(b.pendingPayout||0)-(a.pendingPayout||0)).map(m=>`
+      <div class="card" style="margin-bottom:8px;border-left:3px solid var(--gold);">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <div>
+            <div style="font-weight:700;font-size:13px;">${m.name} <span style="font-size:10px;color:var(--muted);">${m.code}</span></div>
+            <div style="font-size:11px;color:var(--muted);">${m.bank||'No bank'} · ${m.accNum||'—'} · ${m.accName||'—'}</div>
+          </div>
+          <div style="text-align:right;">
+            <div class="pos mono" style="font-size:15px;font-weight:800;">₦${(m.pendingPayout||0).toLocaleString()}</div>
+            <button class="btn btn-sm" style="background:var(--green);color:#fff;border:none;font-size:10px;margin-top:4px;" 
+              onclick="markPaid('${m.code}')">✅ Mark Paid</button>
+          </div>
+        </div>
+      </div>`).join('')}
+
+    <div class="sec-title" style="margin-top:16px;">📁 Monthly Reports</div>
+    ${history}`;
+}
+
+async function markPaid(memberCode){
+  if(!confirm('Mark this payout as processed/paid?'))return;
+  const members=await getMembers();
+  const idx=members.findIndex(m=>m.code===memberCode);
+  if(idx<0)return;
+  members[idx].pendingPayout=0;
+  await saveMembers(members);
+  renderTab('monthly');
+  alert('✅ Marked as paid for '+members[idx].name);
+}
+
+// ═══════════════════════════════════════════════════════════
+// BUILDERS TAB
+// ═══════════════════════════════════════════════════════════
+async function renderBuildersTab(){
+  const [members,orders]=await Promise.all([getMembers(),getOrders()]);
+  const builders=members.filter(m=>m.role==='builder');
+  const unassigned=orders.filter(o=>o.approved&&!o.assignedBuilder&&!o.siteLink);
+
+  return`
+    <div class="sec-title">🏗 Site Builders
+      <button class="btn btn-primary btn-sm" onclick="openCreateBuilder()">+ Add Builder</button>
+    </div>
+
+    ${unassigned.length>0?`
+    <div class="alert alert-gold" style="margin-bottom:12px;font-size:12px;">
+      ⚠️ ${unassigned.length} order${unassigned.length!==1?'s':''} awaiting builder assignment
+    </div>`:''}
+
+    ${builders.length===0?'<div class="empty"><div style="font-size:28px">🏗</div><div>No builders yet. Add one above.</div></div>':''}
+
+    ${builders.map(b=>{
+      const assigned=orders.filter(o=>o.assignedBuilder===b.code&&o.builderStatus!=='complete');
+      const done=orders.filter(o=>o.assignedBuilder===b.code&&o.builderStatus==='complete');
+      return`<div class="card" style="margin-bottom:10px;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+          <div>
+            <div style="font-weight:800;font-size:14px;">${b.name}</div>
+            <div style="font-size:11px;color:var(--muted);">${b.code} · ${b.email}</div>
+            <div style="font-size:11px;margin-top:4px;">
+              <span style="background:#e0f0ff;color:#1a3a8f;padding:2px 6px;border-radius:4px;font-weight:700;margin-right:4px;">${assigned.length} active</span>
+              <span style="background:#d4f0e0;color:#1a6b3c;padding:2px 6px;border-radius:4px;font-weight:700;margin-right:4px;">${b.sitesBuilt||0} built</span>
+              <span style="background:#fff8e0;color:#92600a;padding:2px 6px;border-radius:4px;font-weight:700;">₦${(b.builderEarnings||0).toLocaleString()} earned</span>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--muted);">Pending: ₦${(b.pendingPayout||0).toLocaleString()}</div>
+        </div>
+        ${assigned.length>0?`
+        <div style="margin-top:10px;border-top:1px solid var(--border);padding-top:8px;">
+          <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:6px;">ACTIVE ORDERS</div>
+          ${assigned.map(o=>`
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border);">
+            <div style="font-size:12px;">${o.name} <span style="color:var(--muted);font-size:10px;">${o.phone}</span></div>
+            <span style="font-size:10px;background:#fee2e2;color:#b91c1c;padding:2px 6px;border-radius:4px;">${o.builderStatus||'assigned'}</span>
+          </div>`).join('')}
+        </div>`:''}
+      </div>`;
+    }).join('')}
+
+    <!-- Builder Leaderboard -->
+    ${builders.length>1?`
+    <div class="sec-title" style="margin-top:16px;">🏆 Leaderboard This Month</div>
+    ${[...builders].sort((a,b)=>(b.sitesBuilt||0)-(a.sitesBuilt||0)).map((b,i)=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:8px;background:var(--surface);border-radius:10px;margin-bottom:6px;">
+      <div style="font-size:20px;">${['🥇','🥈','🥉'][i]||'#'+(i+1)}</div>
+      <div style="flex:1;"><div style="font-weight:700;font-size:13px;">${b.name}</div></div>
+      <div style="text-align:right;">
+        <div style="font-weight:800;color:var(--green);">${b.sitesBuilt||0} sites</div>
+        <div style="font-size:11px;color:var(--muted);">₦${(b.builderEarnings||0).toLocaleString()}</div>
+      </div>
+    </div>`).join('')}`:''}
+
+    ${unassigned.length>0?`
+    <div class="sec-title" style="margin-top:16px;">📋 Unassigned Orders</div>
+    ${unassigned.map(o=>`
+    <div class="card" style="margin-bottom:8px;border-left:3px solid var(--gold);">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <div style="font-weight:700;font-size:13px;">${o.name}</div>
+          <div style="font-size:11px;color:var(--muted);">${o.phone} · ${o.date||''}</div>
+        </div>
+        <button class="btn btn-primary btn-sm" data-action="assignBuilder" data-oid="${o.id}">Assign</button>
+      </div>
+    </div>`).join('')}`:''}`;
+}
+
 async function renderOrdersTab(){
   let fbOk=false;
   try{
@@ -2929,13 +3465,29 @@ async function sendSiteDetails(orderId){
     </div>
     <p style="font-size:12px;color:#64748b;">Questions? Contact us: <a href="mailto:rehovtu@gmail.com">rehovtu@gmail.com</a> · 09037066499</p>
     <p style="font-size:13px;font-weight:700;color:#0d1b2a;">Thank you for choosing RehoVTU 💛</p>
+  <div style="margin-top:16px;background:#f8fafc;border-radius:10px;padding:14px;text-align:center;">
+    <div style="font-size:12px;color:#666;margin-bottom:8px;">Want to check your order status?</div>
+    <a href="track.html" style="display:inline-block;background:#0d1b2a;color:#f5b944;padding:10px 20px;border-radius:8px;font-weight:700;font-size:13px;text-decoration:none;">🔍 Track My Order</a>
+  </div>
   </div>
 </div>`;
 
   const sent=await sendEmail(o.email,o.name,'🎉 Your RehoVTU VTU Site is LIVE!',emailBody);
   if(sent){
+    // If sent by a builder, notify founder and mark builder complete
+    if(currentUser.role==='builder'){
+      await markBuilderComplete(orderId);
+      // Notify founder
+      const founderMem=(await getMembers()).find(m=>m.role==='founder');
+      if(founderMem&&founderMem.email){
+        sendEmail(founderMem.email,founderMem.name,'🏗 Builder Sent Site Details',
+          '<p>'+currentUser.name+' ('+currentUser.code+') just sent site details to <b>'+o.name+'</b>.</p>'+
+          '<p>Site link: '+siteLink+'</p><p>Please verify and mark as complete.</p>'
+        );
+      }
+    }
     closeSheet();
-    renderTab('orders');
+    renderTab(currentUser.role==='builder'?'dashboard':'orders');
     alert('✅ Email sent to '+o.name+' ('+o.email+')!\n\nSite link saved to their order.');
   }
 }
@@ -2944,6 +3496,97 @@ async function updateOrderStatus(id,status){
   const orders=await getOrders();
   const idx=orders.findIndex(o=>o.id===id);
   if(idx>=0){orders[idx].status=status;await saveOrders(orders);}
+}
+
+// ═══════════════════════════════════════════════════════════
+// BUILDER MANAGEMENT
+// ═══════════════════════════════════════════════════════════
+async function openCreateBuilder(){
+  openSheet(`<div class="sheet-title">Create Builder Account<button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>
+    <div class="fg"><label class="fl">Full Name</label><input class="fi" id="bl_name" placeholder="Builder full name"></div>
+    <div class="fr">
+      <div class="fg"><label class="fl">Phone</label><input class="fi" id="bl_phone" type="tel" placeholder="080xxxxxxxx"></div>
+      <div class="fg"><label class="fl">Email</label><input class="fi" id="bl_email" type="email" placeholder="email@gmail.com"></div>
+    </div>
+    <div class="fg"><label class="fl">Password</label><input class="fi" id="bl_pass" type="password" placeholder="Set password"></div>
+    <button class="btn btn-primary btn-full" onclick="submitCreateBuilder()">Create Builder Account</button>`);
+}
+
+async function submitCreateBuilder(){
+  const name=document.getElementById('bl_name').value.trim();
+  const phone=document.getElementById('bl_phone').value.trim();
+  const email=document.getElementById('bl_email').value.trim();
+  const pass=document.getElementById('bl_pass').value.trim();
+  if(!name||!phone||!email||!pass){alert('Fill all fields.');return;}
+  const members=await getMembers();
+  const code='BLD'+String(members.filter(m=>m.role==='builder').length+1).padStart(3,'0');
+  members.push({
+    id:'M_'+Date.now(),name,phone,email,password:pass,
+    role:'builder',code,uplineCode:'FOUNDER',state:'',
+    bank:'',accNum:'',accName:'',joinDate:today(),
+    securityA:name.split(' ')[0].toLowerCase(),
+    balance:0,pendingPayout:0,sitesBuilt:0,builderEarnings:0
+  });
+  await saveMembers(members);
+  closeSheet();
+  alert('✅ Builder account created!\nCode: '+code+'\nThey can log in with their email and password.');
+  renderTab('admin');
+}
+
+async function assignOrderToBuilder(orderId){
+  const members=await getMembers();
+  const builders=members.filter(m=>m.role==='builder');
+  if(builders.length===0){alert('No builders yet. Create a builder account first.');return;}
+  const opts=builders.map(b=>`<option value="${b.code}">${b.name} (${b.code}) — ${b.sitesBuilt||0} sites built</option>`).join('');
+  openSheet(`<div class="sheet-title">Assign to Builder<button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>
+    <div class="fg"><label class="fl">Select Builder</label>
+      <select class="fsl" id="assign_builder">${opts}</select></div>
+    <button class="btn btn-primary btn-full" onclick="submitAssignBuilder('${orderId}')">Assign Order</button>`);
+}
+
+async function submitAssignBuilder(orderId){
+  const builderCode=document.getElementById('assign_builder').value;
+  const orders=await getOrders();
+  const idx=orders.findIndex(o=>o.id===orderId);
+  if(idx<0){alert('Order not found.');return;}
+  const members=await getMembers();
+  const builder=members.find(m=>m.code===builderCode);
+  orders[idx].assignedBuilder=builderCode;
+  orders[idx].assignedBuilderName=builder?builder.name:builderCode;
+  orders[idx].builderStatus='assigned';
+  await saveOrders(orders);
+  // Notify builder by email
+  if(builder&&builder.email){
+    sendEmail(builder.email,builder.name,'📋 New Site Order Assigned to You',
+      '<p>Hi '+builder.name+',</p>'+
+      '<p>A new VTU site order has been assigned to you.</p>'+
+      '<p><b>Customer:</b> '+orders[idx].name+'<br>'+
+      '<b>Phone:</b> '+orders[idx].phone+'<br>'+
+      '<b>Site Name:</b> '+(orders[idx].sitename||'Not specified')+'</p>'+
+      '<p>Log in to your RehoVTU Builder dashboard to view details and send site credentials.</p>'+
+      '<p>RehoVTU Team</p>'
+    );
+  }
+  closeSheet();
+  renderTab('orders');
+  alert('✅ Order assigned to '+builder.name);
+}
+
+async function markBuilderComplete(orderId){
+  const orders=await getOrders();
+  const idx=orders.findIndex(o=>o.id===orderId);
+  if(idx<0){alert('Order not found.');return;}
+  const members=await getMembers();
+  const builderCode=orders[idx].assignedBuilder;
+  const bIdx=members.findIndex(m=>m.code===builderCode);
+  if(bIdx>=0){
+    members[bIdx].sitesBuilt=(members[bIdx].sitesBuilt||0)+1;
+    members[bIdx].builderEarnings=(members[bIdx].builderEarnings||0)+BUILDER_PAY_PER_SITE;
+    members[bIdx].balance=(members[bIdx].balance||0)+BUILDER_PAY_PER_SITE;
+    await saveMembers(members);
+  }
+  orders[idx].builderStatus='complete';
+  await saveOrders(orders);
 }
 
 function renderAdminTools(){
@@ -3263,12 +3906,41 @@ async function approvePayment(orderId){
 }
 
 // STAGE 2: Founder marks site as built and releases commission
+async function processSiteRefCommission(order){
+  if(!order.referredBy||order.referredBy===order.source) return; // no extra commission if same as upline
+  const members=await getMembers();
+  const referrer=members.find(m=>m.code===order.referredBy);
+  if(!referrer||referrer.role==='founder') return;
+  const commAmt=200; // ₦200 site referral commission
+  const idx=members.findIndex(m=>m.code===referrer.code);
+  if(idx<0) return;
+  members[idx].balance=(members[idx].balance||0)+commAmt;
+  await saveMembers(members);
+  if(referrer.email){
+    sendEmail(referrer.email,referrer.name,'💰 VTU Site Referral Commission!',
+      '<p>Hi '+referrer.name+',</p>'+
+      '<p>Someone ordered a VTU site through your link!</p>'+
+      '<p><b>₦'+commAmt.toLocaleString()+'</b> has been added to your balance.</p>'+
+      '<p>Customer: '+order.name+'</p>'+
+      '<p>Keep sharing your site referral link! 🚀</p>'+
+      '<p>RehoVTU Team</p>'
+    );
+  }
+}
+
 async function approveOrder(orderId){
   if(!confirm('Mark this site as BUILT and release commission to the team?\n\nThis will count the sign-up and credit the full commission chain. This cannot be undone.')) return;
   const [freshOrders, members, signups] = await Promise.all([getOrders(), getMembers(), getSignups()]);
   const orders = freshOrders;
   const idx = orders.findIndex(o=>o.id===orderId);
   if(idx<0){alert('Order not found. Please refresh the Orders tab and try again.');return;}
+
+  // Check referrer has bank details before releasing commission
+  const refCode=orders[idx].referredBy||orders[idx].source;
+  const refMember=members.find(m=>m.code===refCode&&m.role!=='founder');
+  if(refMember&&(!refMember.bank||!refMember.accNum||!refMember.accName)){
+    alert('⚠️ WARNING: '+refMember.name+' has not filled in their bank details yet.\n\nCommission will still be credited to their balance, but they cannot be paid until they add their account details.');
+  }
   const order = orders[idx];
   if(order.approved){alert('Commission already released for this order.');return;}
   if(!order.paymentConfirmed){
