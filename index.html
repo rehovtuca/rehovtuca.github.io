@@ -769,7 +769,7 @@ function doInstall(){
   }
 
   // Android but prompt not available (local file, already dismissed, or non-Chrome browser)
-  alert('\u2139\ufe0f To install:\n\n1. Open rehovtuca.github.io in Chrome\n2. Tap the \u22ee menu (3 dots)\n3. Tap \"Add to Home screen\" or \"Install app\"');
+  alert('\u2139\ufe0f To install:\n\n1. Open rehobusiness.com.ng in Chrome\n2. Tap the \u22ee menu (3 dots)\n3. Tap \"Add to Home screen\" or \"Install app\"');
 }
 // Populate upline dropdown based on selected role
 let _uplineAllOptions=[]; // cache for search filtering
@@ -851,7 +851,12 @@ async function doRegister(){
   // Always fetch fresh from Firebase before writing
   const members=await getMembers();
   if(members.find(m=>m.email.toLowerCase()===email)){
-    el('regErr').textContent='Email already registered.';el('regErr').classList.remove('hidden');return;}
+    el('regErr').textContent='This email is already registered. Please log in instead.';el('regErr').classList.remove('hidden');return;}
+  if(phone&&members.find(m=>m.phone&&m.phone.replace(/\s/g,'')===phone.replace(/\s/g,''))){
+    el('regErr').textContent='This phone number is already registered. Please log in instead.';el('regErr').classList.remove('hidden');return;}
+  if(name&&members.find(m=>m.name.toLowerCase().trim()===name.toLowerCase().trim())){
+    if(!confirm('A member with the name "'+name+'" already exists. Are you sure you want to continue?')){return;}
+  }
   const upline=members.find(m=>m.code===uplineCode);
   const code=nextCode(members,role);
   const newMember={
@@ -894,10 +899,9 @@ async function doRegister(){
         <p style="margin:4px 0;font-size:13px;">Role: <b>${roleLabel}</b></p>
         <p style="margin:4px 0;font-size:13px;">Upline: <b>${upline?upline.name:uplineCode}</b></p>
       </div>
-      <p style="font-size:13px;color:#334155;">Log in at <a href="https://rehovtuca.github.io" style="color:#1a3a8f;font-weight:700;">rehovtuca.github.io</a> using your email and password.</p>
-      <p style="font-size:13px;color:#334155;">Your referral link: <code style="background:#f8fafc;padding:2px 6px;border-radius:4px;font-size:12px;">rehovtuca.github.io/?ref=${code}&amp;join=${DOWNLINE[role]||'ambassador'}</code></p>
-    <p style="font-size:13px;color:#334155;margin-top:8px;">🌐 VTU Site Order link: <code style="background:#fff8e0;padding:2px 6px;border-radius:4px;font-size:12px;">rehovtuca.github.io/?siteref=${code}</code><br><span style="font-size:11px;color:#888;">Share this — earn commission when someone orders a site through you!</span></p>
-    ${renderWASection(m)}
+      <p style="font-size:13px;color:#334155;">Log in at <a href="https://rehobusiness.com.ng" style="color:#1a3a8f;font-weight:700;">rehobusiness.com.ng</a> using your email and password.</p>
+      <p style="font-size:13px;color:#334155;">Your referral link: <code style="background:#f8fafc;padding:2px 6px;border-radius:4px;font-size:12px;">rehobusiness.com.ng/?ref=${code}&amp;join=${DOWNLINE[role]||'ambassador'}</code></p>
+    <p style="font-size:13px;color:#334155;margin-top:8px;">🌐 VTU Site Order link: <code style="background:#fff8e0;padding:2px 6px;border-radius:4px;font-size:12px;">rehobusiness.com.ng/?siteref=${code}</code><br><span style="font-size:11px;color:#888;">Share this — earn commission when someone orders a site through you!</span></p>
     `+regFooter);
 
   // Notify the upline member that someone joined under them
@@ -911,7 +915,7 @@ async function doRegister(){
           <p style="margin:6px 0 0;font-size:13px;color:#334155;">Phone: <b>${phone}</b> &nbsp;|&nbsp; State: <b>${state||'—'}</b></p>
         </div>
         <p style="font-size:13px;color:#334155;">Log in to your dashboard to see your growing team.</p>
-        <p><a href="https://rehovtuca.github.io" style="background:#1a3a8f;color:#fff;padding:9px 18px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;font-size:13px;">View Dashboard →</a></p>
+        <p><a href="https://rehobusiness.com.ng" style="background:#1a3a8f;color:#fff;padding:9px 18px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;font-size:13px;">View Dashboard →</a></p>
       `+regFooter);
   }
 }
@@ -1540,7 +1544,7 @@ async function submitSignup(){
           <tr style="background:#f8fafc;"><td style="padding:5px 8px;color:#64748b;">Date</td><td style="padding:5px 8px;font-weight:600;">${newSig.date}</td></tr>
         </table>
         <p style="font-size:13px;color:#334155;margin-top:12px;">Log in to track your total earnings.</p>
-        <p><a href="https://rehovtuca.github.io" style="background:#1a3a8f;color:#fff;padding:9px 18px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;font-size:13px;">View My Earnings →</a></p>
+        <p><a href="https://rehobusiness.com.ng" style="background:#1a3a8f;color:#fff;padding:9px 18px;border-radius:8px;text-decoration:none;font-weight:700;display:inline-block;font-size:13px;">View My Earnings →</a></p>
       `+sigFooter);
   }
 
@@ -3020,7 +3024,7 @@ async function submitOrder(){
       <div style="background:#0d1b2a;border-radius:12px;padding:20px 24px;margin-top:20px;">
         <div style="font-size:13px;font-weight:700;color:#e8a020;margin-bottom:8px;">⚡ Action Required</div>
         <p style="font-size:13px;color:rgba(255,255,255,0.75);line-height:1.6;margin:0 0 16px;">Log into your dashboard to approve this order and release commissions to the ambassador chain.</p>
-        <a href="https://rehovtuca.github.io" style="display:inline-block;background:#e8a020;color:#0d1b2a;padding:11px 24px;border-radius:8px;font-size:13px;font-weight:800;text-decoration:none;letter-spacing:0.3px;">Open Dashboard →</a>
+        <a href="https://rehobusiness.com.ng" style="display:inline-block;background:#e8a020;color:#0d1b2a;padding:11px 24px;border-radius:8px;font-size:13px;font-weight:800;text-decoration:none;letter-spacing:0.3px;">Open Dashboard →</a>
       </div>
     </div>`;
 
@@ -3058,7 +3062,7 @@ async function submitOrder(){
           ['Order Date', today()]
         )}
 
-        <a href="https://rehovtuca.github.io" style="display:block;text-align:center;background:#1a3a8f;color:#fff;padding:13px 24px;border-radius:10px;font-size:14px;font-weight:700;text-decoration:none;letter-spacing:0.3px;">View My Dashboard →</a>
+        <a href="https://rehobusiness.com.ng" style="display:block;text-align:center;background:#1a3a8f;color:#fff;padding:13px 24px;border-radius:10px;font-size:14px;font-weight:700;text-decoration:none;letter-spacing:0.3px;">View My Dashboard →</a>
       </div>`;
     sendEmail(member.email, member.name, `₦${commission.toLocaleString()} Commission Pending — New Order via Your Link`, wrap(uplineBody));
   }
