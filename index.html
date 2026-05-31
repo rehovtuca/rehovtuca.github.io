@@ -1023,6 +1023,7 @@ async function showApp(){
     else if(action === 'deleteOrder')    await deleteOrder(oid);
     else if(action === 'removeFine')     await removeFine(oid);
     else if(action === 'assignBuilder')  await assignOrderToBuilder(oid);
+    else if(action === 'sendDirectEmail') await sendDirectEmail(oid);
   });
 }
 
@@ -1186,6 +1187,7 @@ async function openMemberDetail(code){
       <button class="btn btn-gold btn-sm" onclick="openEditMember('${m.code}')">✏️ Edit</button>
       <button class="btn btn-gray btn-sm" onclick="openPromoteDemote('${m.code}')">⬆⬇ Promote/Demote</button>
       <button class="btn btn-gray btn-sm" style="background:#e0f0ff;color:#1a3a8f;" onclick="viewMemberActivity('${m.code}')">📋 Activity</button>
+      <button class="btn btn-gray btn-sm" style="background:#d4f0e0;color:#1a6b3c;" onclick="openDirectEmail('${m.code}')">📧 Email</button>
       <button class="btn btn-gray btn-sm" onclick="openTransfer('${m.code}')">🔀 Transfer</button>
       <button class="btn btn-gray btn-sm" onclick="openChangePassword('${m.code}')">🔑 Change Password</button>
       <button class="btn btn-danger btn-sm" onclick="deleteMember('${m.code}')">🗑 Remove</button>
@@ -3678,6 +3680,58 @@ async function markBuilderComplete(orderId){
 // ═══════════════════════════════════════════════════════════
 // BULK EMAIL SYSTEM
 // ═══════════════════════════════════════════════════════════
+async function openDirectEmail(code){
+  const members = await getMembers();
+  const m = members.find(x=>x.code===code);
+  if(!m){ alert('Member not found.'); return; }
+  if(!m.email){ alert(m.name+' has no email address on record.'); return; }
+
+  openSheet(
+    '<div class="sheet-title">📧 Email '+m.name+'<button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>'
+    +'<div style="background:#f8fafc;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;">'
+    +'<div style="color:var(--muted);font-size:11px;">TO</div>'
+    +'<div style="font-weight:700;">'+m.name+' ('+m.code+')</div>'
+    +'<div style="font-size:12px;color:var(--muted);">'+m.email+'</div>'
+    +'</div>'
+    +'<div class="fg"><label class="fl">Subject</label><input class="fi" id="de_subject" placeholder="Email subject..."></div>'
+    +'<div class="fg"><label class="fl">Message</label>'
+    +'<textarea id="de_body" style="width:100%;min-height:160px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;" placeholder="Write your message here... Use {name} to personalise."></textarea>'
+    +'</div>'
+    +'<div id="de_result" style="margin-bottom:8px;"></div>'
+    +'<button class="btn btn-primary btn-full" data-action="sendDirectEmail" data-oid="'+code+'">📧 Send Email</button>'
+  );
+}
+
+async function sendDirectEmail(code){
+  const subject = document.getElementById('de_subject').value.trim();
+  const body = document.getElementById('de_body').value.trim();
+  if(!subject||!body){ alert('Fill in subject and message.'); return; }
+
+  const members = await getMembers();
+  const m = members.find(x=>x.code===code);
+  if(!m||!m.email){ alert('No email found.'); return; }
+
+  const resultEl = document.getElementById('de_result');
+  resultEl.innerHTML = '<div style="color:#1a3a8f;font-size:13px;">Sending...</div>';
+
+  const personalBody = body.replace(/{name}/g, m.name.split(' ')[0]);
+  const htmlBody = '<div style="font-family:sans-serif;max-width:520px;margin:0 auto;">'
+    +'<div style="background:#0d1b2a;padding:16px 24px;border-radius:12px 12px 0 0;text-align:center;">'
+    +'<span style="font-size:22px;font-weight:900;color:#fff;">Reho<span style="color:#e8a020;">VTU</span></span>'
+    +'</div>'
+    +'<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">'
+    +'<p style="color:#334155;font-size:14px;white-space:pre-wrap;">'+personalBody+'</p>'
+    +'<hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0;">'
+    +'<p style="font-size:11px;color:#94a3b8;">RehoVTU Team | rehovtu@gmail.com | 09037066499</p>'
+    +'</div></div>';
+
+  const ok = await sendEmail(m.email, m.name, subject, htmlBody);
+  if(ok){
+    resultEl.innerHTML = '<div style="color:#1a6b3c;font-weight:700;font-size:13px;">✅ Email sent to '+m.name+'!</div>';
+    setTimeout(()=>closeSheet(), 1500);
+  }
+}
+
 async function openBulkEmail(){
   const members = await getMembers();
   const roles = ['pfc','pm','cc','ambassador','builder'];
