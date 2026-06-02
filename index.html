@@ -402,6 +402,10 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
       <div style="font-size:20px;font-weight:800;color:#fff;margin-bottom:4px;">Create Your VTU Site</div>
       <div style="font-size:13px;color:rgba(255,255,255,.6);">Fill the form below · Pay ₦2,000 · Get your site in 48hrs</div>
     </div>
+    <div id="siteref_banner" style="display:none;background:#d4f0e0;border:1px solid #1a6b3c;border-radius:10px;padding:12px 16px;margin-bottom:12px;font-size:13px;">
+      <div style="font-weight:700;color:#1a6b3c;">✅ Referred by: <span id="siteref_name"></span></div>
+      <div style="font-size:11px;color:#1a6b3c;margin-top:2px;">Your order will be linked to their account automatically.</div>
+    </div>
     <div class="card">
       <div id="orderErr" class="alert alert-error hidden"></div>
       <div id="orderOk" style="display:none;background:#d4f0e0;border:1px solid #1a6b3c;border-radius:10px;padding:16px;margin-bottom:12px;"></div>
@@ -1004,7 +1008,37 @@ async function showApp(){
   setTimeout(checkMonthlyCycle,5000); // Check if 25th cycle reset needed
   // Track site referral from URL
   const _urlSiteRef=new URLSearchParams(window.location.search).get('siteref');
-  if(_urlSiteRef) sessionStorage.setItem('siteref',_urlSiteRef);
+  if(_urlSiteRef){
+    sessionStorage.setItem('siteref',_urlSiteRef);
+    // Show referrer name on order form
+    getMembers().then(members=>{
+      const ref=members.find(m=>m.code===_urlSiteRef);
+      if(ref){
+        const banner=document.getElementById('siteref_banner');
+        const nameEl=document.getElementById('siteref_name');
+        if(banner&&nameEl){
+          nameEl.textContent=ref.name+' ('+ref.code+')';
+          banner.style.display='block';
+        }
+      }
+    });
+  } else {
+    // Check session storage too
+    const sessRef=sessionStorage.getItem('siteref');
+    if(sessRef){
+      getMembers().then(members=>{
+        const ref=members.find(m=>m.code===sessRef);
+        if(ref){
+          const banner=document.getElementById('siteref_banner');
+          const nameEl=document.getElementById('siteref_name');
+          if(banner&&nameEl){
+            nameEl.textContent=ref.name+' ('+ref.code+')';
+            banner.style.display='block';
+          }
+        }
+      });
+    }
+  }
   setTimeout(loadBellCount,1000);
   setInterval(loadBellCount,60000);
   setInterval(checkAndApplyFines,300000);
@@ -2024,7 +2058,7 @@ async function renderMemberDash(){
       {num:pct+'%',lbl:'Of Target',cls:'purple'},
     ],
     pm:[
-      {num:downlines.length,lbl:'My CCs',cls:'blue'},
+      {num:downlines.filter(d=>d.role==='cc').length,lbl:'My CCs',cls:'blue'},
       {num:teamSigs,lbl:'State Sign-ups',cls:'green'},
       {num:myFines.length,lbl:'Fines',cls:'orange'},
       {num:pct+'%',lbl:'Of Target',cls:'purple'},
@@ -2033,7 +2067,12 @@ async function renderMemberDash(){
       {num:downlines.length,lbl:'My PMs',cls:'blue'},
       {num:teamSigs,lbl:'PFC Sign-ups',cls:'green'},
       {num:myFines.length,lbl:'Fines',cls:'orange'},
-      {num:members.filter(x=>x.role==='cc').length,lbl:'Total CCs',cls:'purple'},
+      {num:(()=>{
+        // Count only CCs under this PFC's tree
+        const myPMcodes=downlines.map(d=>d.code);
+        const myCCs=members.filter(x=>x.role==='cc'&&myPMcodes.includes(x.uplineCode));
+        return myCCs.length;
+      })(),lbl:'My CCs',cls:'purple'},
     ],
   };
   const stats=roleStats[m.role]||roleStats.ambassador;
@@ -2702,6 +2741,28 @@ async function clearAllFines(){
   renderTab('fines');
 }
 
+async function notifyUpline(memberCode, subject, message){
+  // Send email notification to direct upline of a member
+  try{
+    const members = await getMembers();
+    const member = members.find(m=>m.code===memberCode);
+    if(!member||!member.uplineCode) return;
+    const upline = members.find(m=>m.code===member.uplineCode);
+    if(!upline||!upline.email||upline.role==='founder') return;
+    const html = '<div style="font-family:sans-serif;max-width:520px;margin:0 auto;">'
+      +'<div style="background:#0d1b2a;padding:16px 24px;border-radius:12px 12px 0 0;text-align:center;">'
+      +'<span style="font-size:22px;font-weight:900;color:#fff;">Reho<span style="color:#e8a020;">VTU</span></span>'
+      +'</div>'
+      +'<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">'
+      +'<p style="color:#334155;font-size:14px;">'+message+'</p>'
+      +'<a href="https://rehobusiness.com.ng" style="display:block;text-align:center;background:#1a3a8f;color:#fff;padding:12px;border-radius:8px;font-weight:700;text-decoration:none;margin-top:12px;">View Dashboard</a>'
+      +'<hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0;">'
+      +'<p style="font-size:11px;color:#94a3b8;">RehoVTU Team | rehovtu@gmail.com | 09037066499</p>'
+      +'</div></div>';
+    sendEmail(upline.email, upline.name, subject, html);
+  }catch(e){ console.warn('notifyUpline error:', e); }
+}
+
 async function openManualFine(){
   const members=(await getMembers()).filter(m=>m.role!=='founder');
   openSheet(`<div class="sheet-title">Add Manual Fine<button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>
@@ -2726,6 +2787,7 @@ async function submitManualFine(){
   fines.unshift({id:'F_'+Date.now(),memberCode,amount,date,reason,auto:false});
   await saveFines(fines);
   if(member) sendEmail(member.email,member.name,'⚠️ RehoVTU Penalty — Manual Fine','<p>Hi '+member.name+',</p><p>A manual penalty of <b>₦'+amount.toLocaleString()+'</b> has been recorded against your account.</p><p>Reason: '+reason+'</p><p>RehoVTU Team</p>');
+  if(member) notifyUpline(memberCode,'⚠️ Fine Applied — '+member.name+' ('+memberCode+')','A fine of <b>₦'+amount.toLocaleString()+'</b> has been applied to <b>'+member.name+'</b> ('+memberCode+') in your network.<br><br>Reason: '+reason);
   closeSheet();renderTab('fines');
 }
 
@@ -2829,7 +2891,13 @@ async function submitOrder(){
   // Find referrer (any role) and build upline chain
   try{
   const members=await getMembers();
-  const amb=ref?members.find(m=>m.code===ref):null;
+
+  // Get siteref early so we can use it for chain building
+  const _siteRefParam=new URLSearchParams(window.location.search).get('siteref')||sessionStorage.getItem('siteref')||'';
+
+  // Use site referral code OR recruitment referral code to build chain
+  const chainStartCode = _siteRefParam || ref;
+  const amb=chainStartCode?members.find(m=>m.code===chainStartCode):null;
   let treeChain=[];
   if(amb){
     let current=amb;
@@ -2843,8 +2911,7 @@ async function submitOrder(){
   }
 
   const hasScreenshot=payref.startsWith('data:image')||payref.startsWith('data:application');
-  // Check for site referral in URL or session
-  const _siteRefParam=new URLSearchParams(window.location.search).get('siteref')||sessionStorage.getItem('siteref')||'';
+  // siteref already captured above
 
   // Duplicate detection
   const existingOrders=await getOrders();
@@ -4232,6 +4299,17 @@ async function approveOrder(orderId){
   }
 
   renderTab('orders');
+  // Notify each upline in treeChain about commission
+  try{
+    const ord=(await getOrders()).find(o=>o.id===orderId);
+    if(ord&&ord.treeChain&&ord.treeChain.length>0){
+      for(const t of ord.treeChain){
+        if(t.email&&t.role!=='founder'){
+          notifyUpline(t.code,'💰 Commission Released — New Site Built','A VTU site order for <b>'+ord.name+'</b> has been completed. Your commission has been released to your balance. <a href="https://rehobusiness.com.ng">Log in to view</a>');
+        }
+      }
+    }
+  }catch(e){}
   alert('✅ Site marked as built! Commission has been released to the team.');
 }
 
