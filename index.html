@@ -971,7 +971,7 @@ function getTabs(){
     {id:'commissions',label:'🏆 Commissions'},{id:'fines',label:'⚠️ Fines'},
     {id:'reports',label:'📑 Reports'},
     {id:'logs',label:'📝 Logs'},
-    {id:'excel',label:'📊 Excel'},{id:'orders',label:'🛒 Orders'},{id:'builders',label:'🏗 Builders'},{id:'monthly',label:'📅 Monthly'},{id:'admin',label:'🔧 Tools'},
+    {id:'excel',label:'📊 Excel'},{id:'orders',label:'🛒 Orders'},{id:'siteowners',label:'🌐 Site Owners'},{id:'builders',label:'🏗 Builders'},{id:'monthly',label:'📅 Monthly'},{id:'admin',label:'🔧 Tools'},
   ];
   return [
     {id:'dashboard',label:'📊 My Stats'},
@@ -1058,6 +1058,8 @@ async function showApp(){
     else if(action === 'removeFine')     await removeFine(oid);
     else if(action === 'assignBuilder')  await assignOrderToBuilder(oid);
     else if(action === 'sendDirectEmail') await sendDirectEmail(oid);
+    else if(action === 'emailSiteOwner')   await emailSiteOwner(oid);
+    else if(action === 'sendSiteOwnerEmail') await sendSiteOwnerEmail(oid);
   });
 }
 
@@ -1084,6 +1086,7 @@ async function renderTab(tab){
       case 'orders':      content.innerHTML=await renderOrdersTab();break;
       case 'fines':       content.innerHTML=await renderFinesTab();break;
       case 'monthly':     content.innerHTML=await renderMonthlyCycleTab();break;
+      case 'siteowners':  content.innerHTML=await renderSiteOwnersTab();break;
       case 'builders':    content.innerHTML=await renderBuildersTab();break;
       case 'admin':       content.innerHTML=renderAdminTools();break;
     }
@@ -3398,6 +3401,221 @@ async function renderBuildersTab(){
         <button class="btn btn-primary btn-sm" data-action="assignBuilder" data-oid="${o.id}">Assign</button>
       </div>
     </div>`).join('')}`:''}`;
+}
+
+// ═══════════════════════════════════════════════════════════
+// SITE OWNERS TAB
+// ═══════════════════════════════════════════════════════════
+let _soSearch = '';
+let _soStateFilter = 'all';
+let _soReferrerFilter = 'all';
+
+async function renderSiteOwnersTab(){
+  const [orders, members] = await Promise.all([getOrders(), getMembers()]);
+
+  // Only show approved (done) orders = active site owners
+  const allOwners = orders.filter(o => o.approved && o.siteLink);
+
+  // Filter
+  const search = _soSearch.toLowerCase();
+  const filtered = allOwners.filter(o => {
+    const matchSearch = !search ||
+      (o.name||'').toLowerCase().includes(search) ||
+      (o.phone||'').includes(search) ||
+      (o.email||'').toLowerCase().includes(search) ||
+      (o.sitename||'').toLowerCase().includes(search) ||
+      (o.state||'').toLowerCase().includes(search);
+    const matchState = _soStateFilter === 'all' || (o.state||'').toLowerCase() === _soStateFilter;
+    const matchRef = _soReferrerFilter === 'all' || (o.referredBy||o.source||'') === _soReferrerFilter;
+    return matchSearch && matchState && matchRef;
+  });
+
+  // Get unique states and referrers for filters
+  const states = [...new Set(allOwners.map(o=>(o.state||'').toLowerCase()).filter(Boolean))].sort();
+  const referrers = [...new Set(allOwners.map(o=>o.referredBy||o.source||'').filter(Boolean))];
+
+  // Stats
+  const thisMonth = today().substring(0,7);
+  const newThisMonth = allOwners.filter(o=>(o.approvedDate||o.date||'').startsWith(thisMonth)).length;
+  const withEmail = allOwners.filter(o=>o.email).length;
+
+  return '<div class="sec-title">🌐 Site Owners'
+    + '<button class="btn btn-primary btn-sm" onclick="openBulkEmailSiteOwners()">📧 Bulk Email</button>'
+    + '</div>'
+
+    // Stats row
+    + '<div class="stats-row">'
+    + '<div class="stat green"><div class="stat-label">Total Active</div><div class="stat-value">' + allOwners.length + '</div></div>'
+    + '<div class="stat blue"><div class="stat-label">This Month</div><div class="stat-value">' + newThisMonth + '</div></div>'
+    + '<div class="stat gold"><div class="stat-label">Have Email</div><div class="stat-value">' + withEmail + '</div></div>'
+    + '<div class="stat"><div class="stat-label">No Email</div><div class="stat-value red">' + (allOwners.length - withEmail) + '</div></div>'
+    + '</div>'
+
+    // Search + filters
+    + '<div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px;">'
+    + '<input class="fi" placeholder="Search name, phone, email, site, state..." value="' + _soSearch + '" oninput="_soSearch=this.value;renderTab(this.dataset.tab)" data-tab="siteowners" style="font-size:13px;">'
+    + '<div style="display:flex;gap:8px;">'
+    + '<select class="fsl" style="flex:1;font-size:12px;" onchange="_soStateFilter=this.value;renderTab(&quot;siteowners&quot;)">'
+    + '<option value="all"' + (_soStateFilter==='all'?' selected':'') + '>All States</option>'
+    + states.map(s => '<option value="' + s + '"' + (_soStateFilter===s?' selected':'') + '>' + s.charAt(0).toUpperCase()+s.slice(1) + '</option>').join('')
+    + '</select>'
+    + '<select class="fsl" style="flex:1;font-size:12px;" onchange="_soReferrerFilter=this.value;renderTab(&quot;siteowners&quot;)">'
+    + '<option value="all"' + (_soReferrerFilter==='all'?' selected':'') + '>All Referrers</option>'
+    + referrers.map(r => {
+        const m = members.find(x=>x.code===r);
+        return '<option value="' + r + '"' + (_soReferrerFilter===r?' selected':'') + '>' + (m?m.name+' ('+r+')':r) + '</option>';
+      }).join('')
+    + '</select>'
+    + '</div>'
+    + '</div>'
+
+    // Count
+    + '<div style="font-size:12px;color:var(--muted);margin-bottom:8px;">'
+    + 'Showing ' + filtered.length + ' of ' + allOwners.length + ' site owners'
+    + (search||_soStateFilter!=='all'||_soReferrerFilter!=='all' ? ' (filtered)' : '')
+    + '</div>'
+
+    // Owner cards
+    + (filtered.length === 0
+      ? '<div class="empty"><div style="font-size:28px">🌐</div><div>' + (search ? 'No results found' : 'No active site owners yet') + '</div></div>'
+      : filtered.map(o => {
+          const ref = members.find(m=>m.code===(o.referredBy||o.source));
+          const activatedDate = o.approvedDate || o.date || '—';
+          return '<div class="card" style="margin-bottom:10px;border-left:3px solid var(--green);">'
+            + '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'
+            + '<div style="flex:1;min-width:0;">'
+            + '<div style="font-weight:800;font-size:14px;">' + o.name + '</div>'
+            + '<div style="font-size:11px;color:var(--muted);margin-top:2px;">' + (o.state||'—') + ' · Activated: ' + activatedDate + '</div>'
+            + '</div>'
+            + '<span style="background:#d4f0e0;color:#1a6b3c;font-size:10px;padding:3px 8px;border-radius:12px;font-weight:700;flex-shrink:0;">ACTIVE</span>'
+            + '</div>'
+            + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px;font-size:12px;">'
+            + '<div>📞 ' + (o.phone||'—') + '</div>'
+            + '<div>📧 ' + (o.email||'<span style="color:#b91c1c;">No email</span>') + '</div>'
+            + '<div>💬 ' + (o.whatsapp||o.phone||'—') + '</div>'
+            + '<div>🌐 ' + (o.sitename||'—') + '</div>'
+            + '</div>'
+            + (ref ? '<div style="font-size:11px;background:#e0f0ff;color:#1a3a8f;padding:4px 8px;border-radius:6px;margin-bottom:8px;">👤 Referred by: ' + ref.name + ' (' + ref.code + ')</div>' : '')
+            + (o.siteLink ? '<div style="font-size:11px;margin-bottom:8px;"><a href="' + o.siteLink + '" target="_blank" style="color:var(--green);">🔗 ' + o.siteLink + '</a></div>' : '')
+            + '<div style="display:flex;gap:6px;">'
+            + (o.email ? '<button class="btn btn-sm" style="flex:1;background:#d4f0e0;color:#1a6b3c;border:none;" data-action="emailSiteOwner" data-oid="' + o.id + '">📧 Email</button>' : '')
+            + (o.whatsapp||o.phone ? '<a href="https://wa.me/234' + (o.whatsapp||o.phone).replace(/^0/,'').replace(/\s/g,'') + '?text=Hi ' + encodeURIComponent(o.name.split(' ')[0]) + ', checking in on your RehoVTU site!" target="_blank" class="btn btn-sm" style="flex:1;background:#25D366;color:#fff;border:none;text-decoration:none;text-align:center;">💬 WhatsApp</button>' : '')
+            + '</div>'
+            + '</div>';
+        }).join('')
+    );
+}
+
+async function openBulkEmailSiteOwners(){
+  const orders = await getOrders();
+  const owners = orders.filter(o=>o.approved&&o.siteLink&&o.email);
+
+  if(owners.length === 0){ alert('No site owners with email addresses found.'); return; }
+
+  openSheet(
+    '<div class="sheet-title">📧 Email All Site Owners<button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>'
+    + '<div style="background:#d4f0e0;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;">'
+    + '<div style="font-weight:700;color:#1a6b3c;">TO: All ' + owners.length + ' active site owners with email</div>'
+    + '<div style="font-size:11px;color:#1a6b3c;">Use {name} to personalise each email automatically</div>'
+    + '</div>'
+    + '<div class="fg"><label class="fl">Subject</label><input class="fi" id="soe_subject" placeholder="e.g. Tips to grow your VTU business this month"></div>'
+    + '<div class="fg"><label class="fl">Message</label>'
+    + '<textarea id="soe_body" style="width:100%;min-height:180px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;" placeholder="Write your message here... Use {name} to personalise."></textarea>'
+    + '</div>'
+    + '<div id="soe_result" style="margin-bottom:8px;"></div>'
+    + '<button class="btn btn-primary btn-full" onclick="sendBulkEmailSiteOwners()">📧 Send to All Site Owners</button>'
+  );
+}
+
+async function sendBulkEmailSiteOwners(){
+  const subject = document.getElementById('soe_subject').value.trim();
+  const body = document.getElementById('soe_body').value.trim();
+  if(!subject||!body){ alert('Fill in subject and message.'); return; }
+
+  const orders = await getOrders();
+  const owners = orders.filter(o=>o.approved&&o.siteLink&&o.email);
+  if(!confirm('Send to ' + owners.length + ' site owners?')) return;
+
+  const resultEl = document.getElementById('soe_result');
+  let sent=0, failed=0;
+
+  for(const o of owners){
+    const personalBody = body.replace(/{name}/g, o.name.split(' ')[0]);
+    const htmlBody = '<div style="font-family:sans-serif;max-width:520px;margin:0 auto;">'
+      + '<div style="background:#0d1b2a;padding:16px 24px;border-radius:12px 12px 0 0;text-align:center;">'
+      + '<span style="font-size:22px;font-weight:900;color:#fff;">Reho<span style="color:#e8a020;">VTU</span></span>'
+      + '</div>'
+      + '<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">'
+      + '<p style="color:#334155;font-size:14px;white-space:pre-wrap;">' + personalBody + '</p>'
+      + (o.siteLink ? '<div style="margin-top:16px;padding:12px;background:#f0fdf4;border-radius:8px;text-align:center;">'
+        + '<div style="font-size:11px;color:#666;margin-bottom:4px;">YOUR VTU SITE</div>'
+        + '<a href="' + o.siteLink + '" style="color:#1a6b3c;font-weight:700;">' + o.siteLink + '</a>'
+        + '</div>' : '')
+      + '<hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0;">'
+      + '<p style="font-size:11px;color:#94a3b8;">RehoVTU Team | rehovtu@gmail.com | 09037066499 | rehobusiness.com.ng</p>'
+      + '</div></div>';
+
+    const ok = await sendEmail(o.email, o.name, subject, htmlBody);
+    if(ok) sent++; else failed++;
+    resultEl.innerHTML = '<div style="font-size:13px;color:#1a3a8f;">⏳ Sending... ' + sent + '/' + owners.length + '</div>';
+  }
+
+  resultEl.innerHTML = '<div style="font-size:13px;font-weight:700;color:' + (failed===0?'#1a6b3c':'#b91c1c') + ';">'
+    + (failed===0 ? '✅ All ' + sent + ' emails sent!' : '✅ ' + sent + ' sent, ❌ ' + failed + ' failed') + '</div>';
+}
+
+async function emailSiteOwner(orderId){
+  const orders = await getOrders();
+  const o = orders.find(x=>x.id===orderId);
+  if(!o||!o.email){ alert('No email address for this site owner.'); return; }
+
+  openSheet(
+    '<div class="sheet-title">📧 Email ' + o.name + '<button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>'
+    + '<div style="background:#f8fafc;border-radius:10px;padding:10px 14px;margin-bottom:12px;font-size:13px;">'
+    + '<div style="font-weight:700;">' + o.name + '</div>'
+    + '<div style="font-size:12px;color:var(--muted);">' + o.email + ' · ' + (o.sitename||'') + '</div>'
+    + '</div>'
+    + '<div class="fg"><label class="fl">Subject</label><input class="fi" id="soi_subject" placeholder="Email subject..."></div>'
+    + '<div class="fg"><label class="fl">Message</label>'
+    + '<textarea id="soi_body" style="width:100%;min-height:160px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;" placeholder="Write your message... Use {name} to personalise."></textarea>'
+    + '</div>'
+    + '<div id="soi_result" style="margin-bottom:8px;"></div>'
+    + '<button class="btn btn-primary btn-full" data-action="sendSiteOwnerEmail" data-oid="' + orderId + '">📧 Send Email</button>'
+  );
+}
+
+async function sendSiteOwnerEmail(orderId){
+  const subject = document.getElementById('soi_subject').value.trim();
+  const body = document.getElementById('soi_body').value.trim();
+  if(!subject||!body){ alert('Fill in subject and message.'); return; }
+
+  const orders = await getOrders();
+  const o = orders.find(x=>x.id===orderId);
+  if(!o||!o.email){ alert('No email found.'); return; }
+
+  const resultEl = document.getElementById('soi_result');
+  resultEl.innerHTML = '<div style="color:#1a3a8f;font-size:13px;">Sending...</div>';
+
+  const personalBody = body.replace(/{name}/g, o.name.split(' ')[0]);
+  const htmlBody = '<div style="font-family:sans-serif;max-width:520px;margin:0 auto;">'
+    + '<div style="background:#0d1b2a;padding:16px 24px;border-radius:12px 12px 0 0;text-align:center;">'
+    + '<span style="font-size:22px;font-weight:900;color:#fff;">Reho<span style="color:#e8a020;">VTU</span></span>'
+    + '</div>'
+    + '<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">'
+    + '<p style="color:#334155;font-size:14px;white-space:pre-wrap;">' + personalBody + '</p>'
+    + (o.siteLink ? '<div style="margin-top:16px;padding:12px;background:#f0fdf4;border-radius:8px;text-align:center;">'
+      + '<div style="font-size:11px;color:#666;margin-bottom:4px;">YOUR VTU SITE</div>'
+      + '<a href="' + o.siteLink + '" style="color:#1a6b3c;font-weight:700;">' + o.siteLink + '</a>'
+      + '</div>' : '')
+    + '<hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0;">'
+    + '<p style="font-size:11px;color:#94a3b8;">RehoVTU Team | rehovtu@gmail.com | 09037066499</p>'
+    + '</div></div>';
+
+  const ok = await sendEmail(o.email, o.name, subject, htmlBody);
+  if(ok){
+    resultEl.innerHTML = '<div style="color:#1a6b3c;font-weight:700;font-size:13px;">✅ Email sent to ' + o.name + '!</div>';
+    setTimeout(()=>closeSheet(), 1500);
+  }
 }
 
 async function renderOrdersTab(){
