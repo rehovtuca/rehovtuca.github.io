@@ -971,11 +971,11 @@ function getTabs(){
     {id:'commissions',label:'🏆 Commissions'},{id:'fines',label:'⚠️ Fines'},
     {id:'reports',label:'📑 Reports'},
     {id:'logs',label:'📝 Logs'},
-    {id:'excel',label:'📊 Excel'},{id:'orders',label:'🛒 Orders'},{id:'siteowners',label:'🌐 Site Owners'},{id:'builders',label:'🏗 Builders'},{id:'monthly',label:'📅 Monthly'},{id:'admin',label:'🔧 Tools'},
+    {id:'excel',label:'📊 Excel'},{id:'orders',label:'🛒 Orders'},{id:'siteowners',label:'🌐 Site Owners'},{id:'announce',label:'📢 Board'},{id:'builders',label:'🏗 Builders'},{id:'monthly',label:'📅 Monthly'},{id:'admin',label:'🔧 Tools'},
   ];
   return [
-    {id:'dashboard',label:'📊 My Stats'},
-    {id:'myteam',label:'👥 My Team'},
+    {id:'dashboard',label:'📊 My Stats'},{id:'board',label:'📢 Board'},
+    {id:'myteam',label:'👥 My Team'},{id:'leaderboard',label:'🏆 Leaderboard'},{id:'mytree',label:'🌳 My Tree'},
     {id:'signups',label:'📋 Sign-ups'},
     {id:'reports',label:'📑 Reports'},
     {id:'logs',label:'📝 Log'},
@@ -1003,6 +1003,19 @@ async function showApp(){
     ?'<span class="hdr-verified">✓ VERIFIED</span>'
     :'<span class="hdr-unverified">⏳ UNVERIFIED</span>';
   buildNav();
+  // Check for new announcements and show badge
+  try{
+    const announcements = await getAnnouncements();
+    if(announcements.length > 0){
+      const lastSeen = LS.get('lastSeenAnnouncement_'+currentUser.code)||'';
+      const latest = announcements[0].id;
+      if(lastSeen !== latest){
+        const boardTab = document.querySelector('[data-tab="board"]') ||
+          [...document.querySelectorAll('.nav-tab')].find(t=>t.textContent.includes('Board'));
+        if(boardTab) boardTab.innerHTML = '📢 Board <span style="background:#b91c1c;color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;margin-left:2px;">NEW</span>';
+      }
+    }
+  }catch(e){}
   await renderTab(currentTab);
   setTimeout(checkAndApplyFines,3000);
   setTimeout(checkMonthlyCycle,5000); // Check if 25th cycle reset needed
@@ -1060,6 +1073,7 @@ async function showApp(){
     else if(action === 'sendDirectEmail') await sendDirectEmail(oid);
     else if(action === 'emailSiteOwner')   await emailSiteOwner(oid);
     else if(action === 'sendSiteOwnerEmail') await sendSiteOwnerEmail(oid);
+    else if(action === 'deleteAnnouncement')  await deleteAnnouncement(oid);
   });
 }
 
@@ -1087,6 +1101,9 @@ async function renderTab(tab){
       case 'fines':       content.innerHTML=await renderFinesTab();break;
       case 'monthly':     content.innerHTML=await renderMonthlyCycleTab();break;
       case 'siteowners':  content.innerHTML=await renderSiteOwnersTab();break;
+      case 'announce':    content.innerHTML=await renderAnnouncementsTab();break;
+      case 'leaderboard': content.innerHTML=await renderLeaderboard();break;
+      case 'mytree':      content.innerHTML=await renderMyTree();break;
       case 'builders':    content.innerHTML=await renderBuildersTab();break;
       case 'admin':       content.innerHTML=renderAdminTools();break;
     }
@@ -1094,6 +1111,15 @@ async function renderTab(tab){
     switch(tab){
       case 'dashboard': content.innerHTML=currentUser.role==='builder'?await renderBuilderDash():await renderMemberDash();break;
       case 'myteam':    content.innerHTML=await renderMyTeam();break;
+      case 'board':
+        LS.set('lastSeenAnnouncement_'+currentUser.code, (await getAnnouncements())[0]?.id||'');
+        content.innerHTML=await renderMemberBoard();
+        // Remove badge
+        const boardBtn=[...document.querySelectorAll('.nav-tab')].find(t=>t.textContent.includes('Board'));
+        if(boardBtn) boardBtn.textContent='📢 Board';
+        break;
+      case 'leaderboard': content.innerHTML=await renderLeaderboard();break;
+      case 'mytree':      content.innerHTML=await renderMyTree();break;
       case 'signups':   content.innerHTML=await renderSignupsTab();break;
       case 'reports':   content.innerHTML=await renderReports();break;
       case 'logs':      content.innerHTML=await renderLogs();break;
@@ -1978,6 +2004,389 @@ function renderWASection(member){
           + m.emoji + ' Copy ' + m.label + '</button>';
       }).join('')
     + '</div></div>';
+}
+
+// ═══════════════════════════════════════════════════════════
+// IMAGE UPLOAD HELPER
+// ═══════════════════════════════════════════════════════════
+function readImageAsBase64(file){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = () => reject(new Error('Failed to read image'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function imagePickerHTML(inputId, previewId){
+  return '<div style="margin-bottom:12px;">'
+    +'<label class="fl">Image (optional)</label>'
+    +'<div style="margin-top:4px;">'
+    +'<input type="file" id="'+inputId+'" accept="image/*" style="display:none;" data-preview="'+previewId+'" onchange="previewEmailImage(this,this.dataset.preview)">'
+    +'<button class="btn btn-gray btn-sm" data-imgid="'+inputId+'" onclick="document.getElementById(this.dataset.imgid).click()">📎 Attach Image</button>'
+    +'<span id="'+previewId+'_name" style="font-size:11px;color:var(--muted);margin-left:8px;"></span>'
+    +'</div>'
+    +'<div id="'+previewId+'" style="margin-top:8px;display:none;">'
+    +'<img id="'+previewId+'_img" style="max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--border);">'
+    +'<button class="btn btn-sm" style="display:block;margin-top:4px;background:#fee2e2;color:#b91c1c;border:none;font-size:11px;" data-imgid="'+inputId+'" data-preview="'+previewId+'" onclick="clearEmailImage(this.dataset.imgid,this.dataset.preview)">✕ Remove</button>'
+    +'</div>'
+    +'</div>';
+}
+
+function previewEmailImage(input, previewId){
+  const file = input.files[0];
+  if(!file) return;
+  if(file.size > 3 * 1024 * 1024){
+    alert('Image must be under 3MB. Please choose a smaller image.');
+    input.value = '';
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = e => {
+    const preview = document.getElementById(previewId);
+    const img = document.getElementById(previewId+'_img');
+    const name = document.getElementById(previewId+'_name');
+    if(preview && img){
+      img.src = e.target.result;
+      preview.style.display = 'block';
+      if(name) name.textContent = file.name;
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearEmailImage(inputId, previewId){
+  document.getElementById(inputId).value = '';
+  const preview = document.getElementById(previewId);
+  const name = document.getElementById(previewId+'_name');
+  if(preview) preview.style.display = 'none';
+  if(name) name.textContent = '';
+}
+
+async function getEmailImageHTML(inputId){
+  const input = document.getElementById(inputId);
+  if(!input || !input.files[0]) return '';
+  try{
+    const base64 = await readImageAsBase64(input.files[0]);
+    return '<div style="text-align:center;margin:16px 0;">'
+      +'<img src="'+base64+'" style="max-width:100%;border-radius:8px;" alt="Announcement image">'
+      +'</div>';
+  }catch(e){ return ''; }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ANNOUNCEMENT BOARD
+// ═══════════════════════════════════════════════════════════
+async function getAnnouncements(){
+  try{ const a=await FB.get('announcements'); if(a) return Array.isArray(a)?a:[]; }catch{}
+  return LS.get('announcements')||[];
+}
+async function saveAnnouncements(a){
+  LS.set('announcements',a);
+  try{ await FB.set('announcements',a); }catch(e){ console.warn('saveAnnouncements error:',e); }
+}
+
+async function renderAnnouncementsTab(){
+  const announcements = await getAnnouncements();
+  const sorted = [...announcements].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  return '<div class="sec-title">📢 Announcement Board'
+    +'<button class="btn btn-primary btn-sm" onclick="openNewAnnouncement()">+ Post</button>'
+    +'</div>'
+    +'<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Posts appear on all member dashboards instantly.</div>'
+    +(sorted.length===0
+      ? '<div class="empty"><div style="font-size:28px">📢</div><div>No announcements yet. Post your first one!</div></div>'
+      : sorted.map(a=>{
+          const pinned = a.pinned ? '<span style="background:#e8a020;color:#0d1b2a;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:700;margin-left:6px;">📌 PINNED</span>' : '';
+          const urgent = a.urgent ? '<span style="background:#fee2e2;color:#b91c1c;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:700;margin-left:6px;">🔴 URGENT</span>' : '';
+          return '<div class="card" style="margin-bottom:10px;border-left:4px solid '+(a.urgent?'#b91c1c':a.pinned?'#e8a020':'var(--primary)')+';">'
+            +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">'
+            +'<div style="font-weight:800;font-size:14px;">'+a.title+pinned+urgent+'</div>'
+            +'<div style="display:flex;gap:6px;flex-shrink:0;">'
+            +'<button class="btn btn-sm" style="background:#fee2e2;color:#b91c1c;border:none;font-size:11px;" data-action="deleteAnnouncement" data-oid="'+a.id+'">🗑</button>'
+            +'</div>'
+            +'</div>'
+            +'<div style="font-size:13px;color:#334155;white-space:pre-wrap;margin-bottom:8px;">'+a.body+'</div>'
+            +(a.imageHTML ? a.imageHTML : '')
+            +'<div style="font-size:11px;color:var(--muted);">'+a.date+' · '+a.time+'</div>'
+            +'</div>';
+        }).join('')
+    );
+}
+
+async function renderMemberBoard(){
+  const announcements = await getAnnouncements();
+  const sorted = [...announcements].sort((a,b)=>{
+    if(a.pinned&&!b.pinned) return -1;
+    if(!a.pinned&&b.pinned) return 1;
+    return (b.date||'').localeCompare(a.date||'');
+  });
+
+  return '<div class="sec-title">📢 Notice Board</div>'
+    +(sorted.length===0
+      ? '<div class="empty"><div style="font-size:28px">📢</div><div>No announcements yet</div></div>'
+      : sorted.map(a=>{
+          const pinned = a.pinned ? '<span style="background:#e8a020;color:#0d1b2a;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:700;margin-left:6px;">📌 PINNED</span>' : '';
+          const urgent = a.urgent ? '<span style="background:#fee2e2;color:#b91c1c;font-size:10px;padding:2px 8px;border-radius:10px;font-weight:700;margin-left:6px;">🔴 URGENT</span>' : '';
+          return '<div class="card" style="margin-bottom:10px;border-left:4px solid '+(a.urgent?'#b91c1c':a.pinned?'#e8a020':'var(--primary)')+';">'
+            +'<div style="font-weight:800;font-size:14px;margin-bottom:6px;">'+a.title+pinned+urgent+'</div>'
+            +'<div style="font-size:13px;color:#334155;white-space:pre-wrap;margin-bottom:8px;">'+a.body+'</div>'
+            +'<div style="font-size:11px;color:var(--muted);">'+a.date+'</div>'
+            +'</div>';
+        }).join('')
+    );
+}
+
+function openNewAnnouncement(){
+  openSheet(
+    '<div class="sheet-title">📢 New Announcement<button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>'
+    +'<div class="fg"><label class="fl">Title</label><input class="fi" id="ann_title" placeholder="e.g. June Target Reminder"></div>'
+    +'<div class="fg"><label class="fl">Message</label>'
+    +'<textarea id="ann_body" style="width:100%;min-height:140px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;" placeholder="Write your announcement here..."></textarea>'
+    +'</div>'
+    +'<div style="display:flex;gap:12px;margin-bottom:12px;">'
+    +'<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">'
+    +'<input type="checkbox" id="ann_pinned"> 📌 Pin to top</label>'
+    +'<label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;">'
+    +'<input type="checkbox" id="ann_urgent"> 🔴 Mark as urgent</label>'
+    +'</div>'
+    +'<div style="margin-bottom:12px;">'
+    +'<label style="font-size:12px;color:var(--muted);font-weight:700;">Also send as email to:</label>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">'
+    +'<label style="display:flex;align-items:center;gap:4px;font-size:12px;background:#f8fafc;padding:4px 8px;border-radius:6px;cursor:pointer;"><input type="checkbox" class="ann_role" value="all"> Everyone</label>'
+    +'<label style="display:flex;align-items:center;gap:4px;font-size:12px;background:#f8fafc;padding:4px 8px;border-radius:6px;cursor:pointer;"><input type="checkbox" class="ann_role" value="pfc"> PFC</label>'
+    +'<label style="display:flex;align-items:center;gap:4px;font-size:12px;background:#f8fafc;padding:4px 8px;border-radius:6px;cursor:pointer;"><input type="checkbox" class="ann_role" value="pm"> PM</label>'
+    +'<label style="display:flex;align-items:center;gap:4px;font-size:12px;background:#f8fafc;padding:4px 8px;border-radius:6px;cursor:pointer;"><input type="checkbox" class="ann_role" value="cc"> CC</label>'
+    +'<label style="display:flex;align-items:center;gap:4px;font-size:12px;background:#f8fafc;padding:4px 8px;border-radius:6px;cursor:pointer;"><input type="checkbox" class="ann_role" value="ambassador"> Ambassador</label>'
+    +'</div>'
+    +'</div>'
+    +imagePickerHTML('ann_img','ann_img_preview')
+    +'<button class="btn btn-primary btn-full" onclick="postAnnouncement()">📢 Post Announcement</button>'
+  );
+}
+
+async function postAnnouncement(){
+  const title = document.getElementById('ann_title').value.trim();
+  const body = document.getElementById('ann_body').value.trim();
+  if(!title||!body){ alert('Fill in title and message.'); return; }
+
+  const pinned = document.getElementById('ann_pinned').checked;
+  const urgent = document.getElementById('ann_urgent').checked;
+  const selectedRoles = [...document.querySelectorAll('.ann_role:checked')].map(c=>c.value);
+
+  const announcements = await getAnnouncements();
+  const now = new Date();
+
+  // Get image if attached
+  let imageHTML = '';
+  try{ imageHTML = await getEmailImageHTML('ann_img'); }catch(e){}
+
+  announcements.unshift({
+    id: 'A_'+Date.now(),
+    title, body, pinned, urgent,
+    imageHTML,
+    date: today(),
+    time: now.toLocaleTimeString('en-NG',{hour:'2-digit',minute:'2-digit'}),
+    postedBy: currentUser.code
+  });
+  await saveAnnouncements(announcements);
+
+  // Send email if roles selected
+  if(selectedRoles.length > 0){
+    const members = await getMembers();
+    const htmlBody = '<div style="font-family:sans-serif;max-width:520px;margin:0 auto;">'
+      +'<div style="background:#0d1b2a;padding:16px 24px;border-radius:12px 12px 0 0;text-align:center;">'
+      +'<span style="font-size:22px;font-weight:900;color:#fff;">Reho<span style="color:#e8a020;">VTU</span></span>'
+      +'</div>'
+      +'<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">'
+      +(urgent ? '<div style="background:#fee2e2;border-radius:8px;padding:8px 12px;margin-bottom:12px;font-weight:700;color:#b91c1c;">🔴 URGENT NOTICE</div>' : '')
+      +'<h2 style="font-size:18px;font-weight:800;color:#0d1b2a;margin:0 0 12px;">'+title+'</h2>'
+      +'<p style="color:#334155;font-size:14px;white-space:pre-wrap;">'+body+'</p>'
+      +(imageHTML ? imageHTML : '')
+      +'<a href="https://rehobusiness.com.ng" style="display:block;text-align:center;background:#1a3a8f;color:#fff;padding:12px;border-radius:8px;font-weight:700;text-decoration:none;margin-top:16px;">View on Dashboard</a>'
+      +'<hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0;">'
+      +'<p style="font-size:11px;color:#94a3b8;">RehoVTU Team | rehovtu@gmail.com | 09037066499</p>'
+      +'</div></div>';
+
+    const toSend = selectedRoles.includes('all')
+      ? members.filter(m=>m.role!=='founder'&&m.email)
+      : members.filter(m=>selectedRoles.includes(m.role)&&m.email);
+
+    for(const m of toSend){
+      sendEmail(m.email, m.name, (urgent?'🔴 URGENT: ':'')+title, htmlBody);
+    }
+    closeSheet();
+    renderTab('announce');
+    alert('✅ Announcement posted! Emailing '+toSend.length+' members.');
+  } else {
+    closeSheet();
+    renderTab('announce');
+    alert('✅ Announcement posted to board!');
+  }
+}
+
+async function deleteAnnouncement(id){
+  if(!confirm('Delete this announcement?')) return;
+  const announcements = await getAnnouncements();
+  const updated = announcements.filter(a=>a.id!==id);
+  await saveAnnouncements(updated);
+  renderTab('announce');
+}
+
+// ═══════════════════════════════════════════════════════════
+// LEADERBOARD
+// ═══════════════════════════════════════════════════════════
+async function renderLeaderboard(){
+  const [members, signups] = await Promise.all([getMembers(), getSignups()]);
+  const thisMonth = today().substring(0,7);
+
+  const roleOrder = ['pfc','pm','cc','ambassador'];
+  const roleLabels = {pfc:'PFC',pm:'State PM',cc:'Campus Coordinator',ambassador:'Ambassador'};
+  const roleTargets = {pfc:100000,pm:20000,cc:2500,ambassador:100};
+  const roleColors = {pfc:'#1a3a8f',pm:'#92600a',cc:'#1a6b3c',ambassador:'#5c3d0a'};
+
+  // Count signups this month per member
+  const monthSignups = signups.filter(s=>(s.date||'').startsWith(thisMonth));
+  const countMap = {};
+  monthSignups.forEach(s=>{
+    if(s.uplineCode) countMap[s.uplineCode] = (countMap[s.uplineCode]||0)+1;
+  });
+
+  const sections = roleOrder.map(role=>{
+    const roleMembers = members
+      .filter(m=>m.role===role)
+      .map(m=>({...m, count: countMap[m.code]||0}))
+      .sort((a,b)=>b.count-a.count);
+
+    if(roleMembers.length===0) return '';
+
+    const target = roleTargets[role];
+    const color = roleColors[role];
+    const label = roleLabels[role];
+
+    return '<div style="margin-bottom:20px;">'
+      +'<div style="font-weight:800;font-size:13px;color:'+color+';text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;padding:6px 10px;background:var(--surface);border-radius:8px;">'
+      +label+' LEADERBOARD</div>'
+      +roleMembers.slice(0,10).map((m,i)=>{
+        const pct = Math.min(100, Math.round(m.count/target*100));
+        const medal = ['🥇','🥈','🥉'][i]||(i+1)+'.';
+        return '<div class="card" style="margin-bottom:6px;padding:10px 12px;">'
+          +'<div style="display:flex;align-items:center;gap:10px;">'
+          +'<div style="font-size:18px;width:28px;text-align:center;">'+medal+'</div>'
+          +'<div style="flex:1;min-width:0;">'
+          +'<div style="font-weight:700;font-size:13px;">'+m.name+'</div>'
+          +'<div style="font-size:11px;color:var(--muted);">'+m.code+' · '+m.state+'</div>'
+          +'<div style="margin-top:5px;background:#e2e8f0;border-radius:10px;height:6px;overflow:hidden;">'
+          +'<div style="background:'+color+';height:100%;width:'+pct+'%;border-radius:10px;transition:width .3s;"></div>'
+          +'</div>'
+          +'</div>'
+          +'<div style="text-align:right;flex-shrink:0;">'
+          +'<div style="font-weight:800;font-size:16px;color:'+color+';">'+m.count.toLocaleString()+'</div>'
+          +'<div style="font-size:10px;color:var(--muted);">'+pct+'% of target</div>'
+          +'</div>'
+          +'</div>'
+          +'</div>';
+      }).join('')
+      +(roleMembers.length>10 ? '<div style="font-size:12px;color:var(--muted);text-align:center;padding:4px;">+' + (roleMembers.length-10) + ' more members</div>' : '')
+      +'</div>';
+  }).join('');
+
+  const myCount = countMap[currentUser.code]||0;
+  const myTarget = roleTargets[currentUser.role]||0;
+  const myRank = members.filter(m=>m.role===currentUser.role).map(m=>({...m,count:countMap[m.code]||0})).sort((a,b)=>b.count-a.count).findIndex(m=>m.code===currentUser.code)+1;
+
+  const myBadge = currentUser.role!=='founder'
+    ? '<div style="background:linear-gradient(135deg,#0d1b2a,#1a3a8f);color:#fff;border-radius:14px;padding:14px 16px;margin-bottom:16px;">'
+      +'<div style="font-size:11px;color:rgba(255,255,255,.6);margin-bottom:4px;">YOUR RANKING THIS MONTH</div>'
+      +'<div style="display:flex;justify-content:space-between;align-items:center;">'
+      +'<div><div style="font-size:24px;font-weight:900;">#'+myRank+'</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.7);">in '+roleLabels[currentUser.role]+'</div></div>'
+      +'<div style="text-align:right;"><div style="font-size:24px;font-weight:900;color:#e8a020;">'+myCount.toLocaleString()+'</div>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,.7);">of '+myTarget.toLocaleString()+' target</div></div>'
+      +'</div></div>'
+    : '';
+
+  return '<div class="sec-title">🏆 June 2026 Leaderboard</div>'
+    + myBadge
+    + '<div style="font-size:12px;color:var(--muted);margin-bottom:12px;">Top 10 per role · Updates in real time · Based on sign-ups this month</div>'
+    + sections;
+}
+
+// ═══════════════════════════════════════════════════════════
+// REFERRAL TREE VISUALISER
+// ═══════════════════════════════════════════════════════════
+async function renderMyTree(){
+  const [members, signups] = await Promise.all([getMembers(), getSignups()]);
+  const thisMonth = today().substring(0,7);
+
+  // Count signups per member this month
+  const countMap = {};
+  signups.filter(s=>(s.date||'').startsWith(thisMonth)).forEach(s=>{
+    if(s.uplineCode) countMap[s.uplineCode] = (countMap[s.uplineCode]||0)+1;
+  });
+
+  const roleColors = {founder:'#e8a020',pfc:'#1a3a8f',pm:'#92600a',cc:'#1a6b3c',ambassador:'#5c3d0a',builder:'#374151'};
+  const roleLabels = {founder:'Founder',pfc:'PFC',pm:'PM',cc:'CC',ambassador:'Ambassador',builder:'Builder'};
+
+  function renderNode(member, depth){
+    const color = roleColors[member.role]||'#666';
+    const count = countMap[member.code]||0;
+    const directDownlines = members.filter(m=>m.uplineCode===member.code);
+    const isMe = member.code === currentUser.code;
+
+    return '<div style="margin-left:'+(depth*16)+'px;margin-bottom:6px;">'
+      +'<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:'+(isMe?'linear-gradient(135deg,#0d1b2a,#1a3a8f)':'var(--surface)')+';border-radius:10px;border-left:3px solid '+color+';">'
+      +(depth>0 ? '<div style="color:var(--muted);font-size:12px;">└</div>' : '')
+      +'<div style="width:32px;height:32px;border-radius:50%;background:'+color+';display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;flex-shrink:0;">'
+      +member.name.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase()
+      +'</div>'
+      +'<div style="flex:1;min-width:0;">'
+      +'<div style="font-weight:700;font-size:13px;color:'+(isMe?'#fff':'var(--dark)')+';">'+member.name+(isMe?' (You)':'')+'</div>'
+      +'<div style="font-size:11px;color:'+(isMe?'rgba(255,255,255,.6)':'var(--muted)')+';">'+member.code+' · '+roleLabels[member.role]+'</div>'
+      +'</div>'
+      +'<div style="text-align:right;flex-shrink:0;">'
+      +'<div style="font-weight:800;font-size:14px;color:'+(isMe?'#e8a020':color)+';">'+count+'</div>'
+      +'<div style="font-size:10px;color:'+(isMe?'rgba(255,255,255,.5)':'var(--muted)')+';">sign-ups</div>'
+      +'</div>'
+      +'</div>'
+      +(directDownlines.length > 0
+        ? directDownlines.map(d=>renderNode(d, depth+1)).join('')
+        : '')
+      +'</div>';
+  }
+
+  // For founder, show full tree
+  // For others, show from their position down
+  let treeRoot;
+  let treeTitle;
+  if(currentUser.role === 'founder'){
+    treeRoot = members.filter(m=>m.role==='pfc');
+    treeTitle = 'Full Network Tree';
+  } else {
+    treeRoot = [currentUser];
+    treeTitle = 'My Downline Tree';
+  }
+
+  const totalDown = members.filter(m=>{
+    let cur = m;
+    while(cur.uplineCode){
+      if(cur.uplineCode === currentUser.code) return true;
+      cur = members.find(x=>x.code===cur.uplineCode)||{};
+    }
+    return false;
+  });
+
+  const myMonthCount = countMap[currentUser.code]||0;
+  const totalTreeCount = totalDown.reduce((s,m)=>s+(countMap[m.code]||0),0)+myMonthCount;
+
+  return '<div class="sec-title">🌳 '+treeTitle+'</div>'
+    +'<div style="display:flex;gap:8px;margin-bottom:12px;">'
+    +'<div class="stat" style="flex:1;"><div class="stat-label">Team Size</div><div class="stat-value blue">'+totalDown.length+'</div></div>'
+    +'<div class="stat" style="flex:1;"><div class="stat-label">Tree Sign-ups</div><div class="stat-value green">'+totalTreeCount.toLocaleString()+'</div></div>'
+    +'<div class="stat" style="flex:1;"><div class="stat-label">My Sign-ups</div><div class="stat-value gold">'+myMonthCount+'</div></div>'
+    +'</div>'
+    +'<div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Showing sign-ups for June 2026</div>'
+    + treeRoot.map(m=>renderNode(m,0)).join('');
 }
 
 async function renderBuilderDash(){
@@ -3982,6 +4391,7 @@ async function openDirectEmail(code){
     +'<div class="fg"><label class="fl">Message</label>'
     +'<textarea id="de_body" style="width:100%;min-height:160px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;" placeholder="Write your message here... Use {name} to personalise."></textarea>'
     +'</div>'
+    +imagePickerHTML('de_img','de_img_preview')
     +'<div id="de_result" style="margin-bottom:8px;"></div>'
     +'<button class="btn btn-primary btn-full" data-action="sendDirectEmail" data-oid="'+code+'">📧 Send Email</button>'
   );
@@ -4000,12 +4410,14 @@ async function sendDirectEmail(code){
   resultEl.innerHTML = '<div style="color:#1a3a8f;font-size:13px;">Sending...</div>';
 
   const personalBody = body.replace(/{name}/g, m.name.split(' ')[0]);
+  const imgHTML = await getEmailImageHTML('de_img').catch(()=>'');
   const htmlBody = '<div style="font-family:sans-serif;max-width:520px;margin:0 auto;">'
     +'<div style="background:#0d1b2a;padding:16px 24px;border-radius:12px 12px 0 0;text-align:center;">'
     +'<span style="font-size:22px;font-weight:900;color:#fff;">Reho<span style="color:#e8a020;">VTU</span></span>'
     +'</div>'
     +'<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">'
     +'<p style="color:#334155;font-size:14px;white-space:pre-wrap;">'+personalBody+'</p>'
+    +imgHTML
     +'<hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0;">'
     +'<p style="font-size:11px;color:#94a3b8;">RehoVTU Team | rehovtu@gmail.com | 09037066499</p>'
     +'</div></div>';
@@ -4041,6 +4453,7 @@ async function openBulkEmail(){
     +'<div class="fg"><label class="fl">Message</label>'
     +'<textarea id="be_body" style="width:100%;min-height:140px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;" placeholder="Write your message here... Use {name} to personalise each message."></textarea>'
     +'</div>'
+    +imagePickerHTML('be_img','be_img_preview')
     +'<div id="be_result" style="margin-bottom:8px;"></div>'
     +'<button class="btn btn-primary btn-full" onclick="sendBulkEmail()">📧 Send to Selected</button>'
   );
