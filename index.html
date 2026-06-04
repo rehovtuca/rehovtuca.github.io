@@ -971,11 +971,11 @@ function getTabs(){
     {id:'commissions',label:'🏆 Commissions'},{id:'fines',label:'⚠️ Fines'},
     {id:'reports',label:'📑 Reports'},
     {id:'logs',label:'📝 Logs'},
-    {id:'excel',label:'📊 Excel'},{id:'orders',label:'🛒 Orders'},{id:'siteowners',label:'🌐 Site Owners'},{id:'announce',label:'📢 Board'},{id:'builders',label:'🏗 Builders'},{id:'monthly',label:'📅 Monthly'},{id:'admin',label:'🔧 Tools'},
+    {id:'excel',label:'📊 Excel'},{id:'orders',label:'🛒 Orders'},{id:'siteowners',label:'🌐 Site Owners'},{id:'announce',label:'📢 Board'},{id:'builders',label:'🏗 Builders'},{id:'monthly',label:'📅 Monthly'},{id:'hr',label:'👥 HR'},{id:'smm',label:'📱 SMM'},{id:'admin',label:'🔧 Tools'},
   ];
   return [
     {id:'dashboard',label:'📊 My Stats'},{id:'board',label:'📢 Board'},
-    {id:'myteam',label:'👥 My Team'},{id:'leaderboard',label:'🏆 Leaderboard'},{id:'mytree',label:'🌳 My Tree'},
+    {id:'myteam',label:'👥 My Team'},{id:'leaderboard',label:'🏆 Leaderboard'},{id:'mytree',label:'🌳 My Tree'},{id:'withdraw',label:'💰 Withdraw'},
     {id:'signups',label:'📋 Sign-ups'},
     {id:'reports',label:'📑 Reports'},
     {id:'logs',label:'📝 Log'},
@@ -1074,6 +1074,13 @@ async function showApp(){
     else if(action === 'emailSiteOwner')   await emailSiteOwner(oid);
     else if(action === 'sendSiteOwnerEmail') await sendSiteOwnerEmail(oid);
     else if(action === 'deleteAnnouncement')  await deleteAnnouncement(oid);
+    else if(action === 'deleteHR')            await deleteHR(oid);
+    else if(action === 'approveWithdrawal')   await approveWithdrawal(oid);
+    else if(action === 'rejectWithdrawal')    await rejectWithdrawal(oid);
+    else if(action === 'sharePostToMembers')  await sharePostToMembers(oid);
+    else if(action === 'deleteSMMPost')       await deleteSMMPost(oid);
+    else if(action === 'downloadAsset')       await downloadAsset(oid);
+    else if(action === 'verifyMember')        await verifyMember(oid);
   });
 }
 
@@ -1100,6 +1107,8 @@ async function renderTab(tab){
       case 'orders':      content.innerHTML=await renderOrdersTab();break;
       case 'fines':       content.innerHTML=await renderFinesTab();break;
       case 'monthly':     content.innerHTML=await renderMonthlyCycleTab();break;
+      case 'hr':          content.innerHTML=await renderHRTab();break;
+      case 'smm':         content.innerHTML=await renderSMMTab();break;
       case 'siteowners':  content.innerHTML=await renderSiteOwnersTab();break;
       case 'announce':    content.innerHTML=await renderAnnouncementsTab();break;
       case 'leaderboard': content.innerHTML=await renderLeaderboard();break;
@@ -1250,6 +1259,7 @@ async function openMemberDetail(code){
       <button class="btn btn-gold btn-sm" onclick="openEditMember('${m.code}')">✏️ Edit</button>
       <button class="btn btn-gray btn-sm" onclick="openPromoteDemote('${m.code}')">⬆⬇ Promote/Demote</button>
       <button class="btn btn-gray btn-sm" style="background:#e0f0ff;color:#1a3a8f;" onclick="viewMemberActivity('${m.code}')">📋 Activity</button>
+      ${!m.verified ? '<button class="btn btn-sm" style="background:#d4f0e0;color:#1a6b3c;" data-action="verifyMember" data-oid="'+m.code+'">✅ Verify</button>' : '<span style="font-size:10px;background:#d4f0e0;color:#1a6b3c;padding:2px 8px;border-radius:8px;font-weight:700;">✓ Verified</span>'}
       <button class="btn btn-gray btn-sm" style="background:#d4f0e0;color:#1a6b3c;" onclick="openDirectEmail('${m.code}')">📧 Email</button>
       <button class="btn btn-gray btn-sm" onclick="openTransfer('${m.code}')">🔀 Transfer</button>
       <button class="btn btn-gray btn-sm" onclick="openChangePassword('${m.code}')">🔑 Change Password</button>
@@ -2388,6 +2398,583 @@ async function renderMyTree(){
     +'<div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Showing sign-ups for June 2026</div>'
     + treeRoot.map(m=>renderNode(m,0)).join('');
 }
+
+
+// ═══════════════════════════════════════════════════════════
+// DATA HELPERS
+// ═══════════════════════════════════════════════════════════
+async function getHRLogs(type){ try{ const d=await FB.get('hr_'+type); if(d) return Array.isArray(d)?d:[]; }catch{} return LS.get('hr_'+type)||[]; }
+async function saveHRLogs(type,d){ LS.set('hr_'+type,d); try{ await FB.set('hr_'+type,d); }catch(e){ console.warn(e); } }
+async function getWithdrawals(){ try{ const d=await FB.get('withdrawals'); if(d) return Array.isArray(d)?d:[]; }catch{} return LS.get('withdrawals')||[]; }
+async function saveWithdrawals(d){ LS.set('withdrawals',d); try{ await FB.set('withdrawals',d); }catch(e){ console.warn(e); } }
+async function getSMMPosts(){ try{ const d=await FB.get('smm_posts'); if(d) return Array.isArray(d)?d:[]; }catch{} return LS.get('smm_posts')||[]; }
+async function saveSMMPosts(d){ LS.set('smm_posts',d); try{ await FB.set('smm_posts',d); }catch(e){ console.warn(e); } }
+async function getSMMAssets(){ try{ const d=await FB.get('smm_assets'); if(d) return Array.isArray(d)?d:[]; }catch{} return LS.get('smm_assets')||[]; }
+async function saveSMMAssets(d){ LS.set('smm_assets',d); try{ await FB.set('smm_assets',d); }catch(e){ console.warn(e); } }
+
+// ═══════════════════════════════════════════════════════════
+// MEMBER VERIFICATION
+// ═══════════════════════════════════════════════════════════
+async function verifyMember(code){
+  const members = await getMembers();
+  const idx = members.findIndex(m=>m.code===code);
+  if(idx<0) return;
+  members[idx].verified = true;
+  await saveMembers(members);
+  // Email member
+  const m = members[idx];
+  if(m.email) sendEmail(m.email, m.name, 'Your RehoVTU Account is Verified!',
+    '<p>Hi '+m.name+',</p><p>Great news! Your RehoVTU account has been verified by the Founder.</p>'
+    +'<p>You now have full access to your dashboard. Log in at <a href="https://rehobusiness.com.ng">rehobusiness.com.ng</a></p>'
+    +'<p>RehoVTU Team</p>');
+  renderTab('members');
+  alert('Verified: '+m.name);
+}
+
+// ═══════════════════════════════════════════════════════════
+// HR TAB
+// ═══════════════════════════════════════════════════════════
+let _hrTab = 'interviews';
+
+async function renderHRTab(){
+  const interviews = await getHRLogs('interviews');
+  const daily = await getHRLogs('daily');
+  const signups = await getHRLogs('signups');
+
+  const tabs = [
+    {id:'interviews', label:'🎤 Interviews', count: interviews.length},
+    {id:'daily', label:'📋 Daily Logs', count: daily.length},
+    {id:'signups', label:'📈 Sign-up Tracking', count: signups.length},
+  ];
+
+  const tabBar = '<div style="display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;">'
+    + tabs.map(t=>'<button class="btn btn-sm" style="flex-shrink:0;'+(
+        _hrTab===t.id ? 'background:var(--primary);color:#fff;' : 'background:var(--surface);color:var(--dark);')
+      +'" data-tab="'+t.id+'" onclick="_hrTab=this.dataset.tab;renderTab(\"hr\")">'+t.label+' ('+t.count+')</button>').join('')
+    + '</div>';
+
+  let body = '';
+
+  if(_hrTab === 'interviews'){
+    body = '<button class="btn btn-primary btn-sm" style="margin-bottom:12px;" onclick="openHRForm(&quot;interview&quot;)">+ Log Interview</button>'
+      + (interviews.length===0 ? '<div class="empty"><div>No interviews logged yet</div></div>'
+        : [...interviews].reverse().map(r=>'<div class="card" style="margin-bottom:8px;">'
+          +'<div style="display:flex;justify-content:space-between;">'
+          +'<div><div style="font-weight:700;">'+r.candidate+'</div>'
+          +'<div style="font-size:11px;color:var(--muted);">'+r.role+' · '+r.stage+' · '+r.date+'</div>'
+          +'</div>'
+          +'<span style="font-size:11px;padding:2px 8px;border-radius:10px;font-weight:700;align-self:flex-start;background:'
+          +(r.recommendation==='Hire'?'#d4f0e0;color:#1a6b3c':r.recommendation==='Reject'?'#fee2e2;color:#b91c1c':'#fff8e0;color:#92600a')
+          +';">'+r.recommendation+'</span>'
+          +'</div>'
+          +'<div style="font-size:12px;margin-top:4px;">Avg Score: <b>'+r.avgScore+'</b>/10 · '+r.type+' · by '+r.interviewer+'</div>'
+          +(r.remarks ? '<div style="font-size:11px;color:var(--muted);margin-top:3px;">'+r.remarks+'</div>' : '')
+          +'<button class="btn btn-sm" style="margin-top:6px;background:#fee2e2;color:#b91c1c;border:none;font-size:11px;" data-action="deleteHR" data-oid="interviews|'+r.id+'">🗑 Delete</button>'
+          +'</div>').join(''));
+  }
+
+  else if(_hrTab === 'daily'){
+    body = '<button class="btn btn-primary btn-sm" style="margin-bottom:12px;" onclick="openHRForm(&quot;daily&quot;)">+ Log Today</button>'
+      + (daily.length===0 ? '<div class="empty"><div>No daily logs yet</div></div>'
+        : [...daily].reverse().map(r=>'<div class="card" style="margin-bottom:8px;">'
+          +'<div style="font-weight:700;">'+r.date+'</div>'
+          +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;font-size:12px;margin-top:6px;">'
+          +'<div>📞 Calls: <b>'+r.calls+'</b></div><div>📧 Emails: <b>'+r.emails+'</b></div>'
+          +'<div>🎤 Interviews: <b>'+r.interviews+'</b></div><div>📋 Follow-ups: <b>'+r.followups+'</b></div>'
+          +'<div>✉️ Offers: <b>'+r.offers+'</b></div><div>✅ Tasks: <b>'+r.tasks+'</b></div>'
+          +'</div>'
+          +(r.challenges ? '<div style="font-size:11px;color:#b91c1c;margin-top:4px;">⚠️ '+r.challenges+'</div>' : '')
+          +(r.plan ? '<div style="font-size:11px;color:var(--muted);margin-top:3px;">Tomorrow: '+r.plan+'</div>' : '')
+          +'<button class="btn btn-sm" style="margin-top:6px;background:#fee2e2;color:#b91c1c;border:none;font-size:11px;" data-action="deleteHR" data-oid="daily|'+r.id+'">🗑 Delete</button>'
+          +'</div>').join(''));
+  }
+
+  else if(_hrTab === 'signups'){
+    body = '<button class="btn btn-primary btn-sm" style="margin-bottom:12px;" onclick="openHRForm(&quot;signup&quot;)">+ Log Sign-up</button>'
+      + (signups.length===0 ? '<div class="empty"><div>No sign-ups logged yet</div></div>'
+        : [...signups].reverse().map(r=>'<div class="card" style="margin-bottom:8px;">'
+          +'<div style="font-weight:700;">'+r.name+'</div>'
+          +'<div style="font-size:11px;color:var(--muted);">'+r.role+' · '+r.state+' · '+r.date+'</div>'
+          +'<div style="font-size:12px;margin-top:4px;">📞 '+r.phone+' · '+r.campus+'</div>'
+          +'<div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap;">'
+          +'<span style="font-size:10px;padding:2px 6px;border-radius:8px;background:#e0f0ff;color:#1a3a8f;">'+r.source+'</span>'
+          +'<span style="font-size:10px;padding:2px 6px;border-radius:8px;background:'+(r.offerStatus==='Signed'?'#d4f0e0;color:#1a6b3c':'#fff8e0;color:#92600a')+';">'+r.offerStatus+'</span>'
+          +'</div>'
+          +'<button class="btn btn-sm" style="margin-top:6px;background:#fee2e2;color:#b91c1c;border:none;font-size:11px;" data-action="deleteHR" data-oid="signups|'+r.id+'">🗑 Delete</button>'
+          +'</div>').join(''));
+  }
+
+  // Export button
+  const exportBtn = '<button class="btn btn-gray btn-sm" style="margin-bottom:12px;margin-left:6px;" data-tab="'+_hrTab+'" onclick="exportHRData(this.dataset.tab)">⬇ Export CSV</button>';
+
+  return '<div class="sec-title">👥 HR Command Centre</div>'
+    + tabBar
+    + '<div style="display:flex;gap:6px;margin-bottom:8px;">' + exportBtn + '</div>'
+    + body;
+}
+
+function openHRForm(type){
+  let html = '';
+  if(type === 'interview'){
+    html = '<div class="sheet-title">🎤 Log Interview<button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>'
+      +'<div class="fr"><div class="fg"><label class="fl">Candidate Name</label><input class="fi" id="hr_candidate" placeholder="Full name"></div>'
+      +'<div class="fg"><label class="fl">Date</label><input class="fi" type="date" id="hr_date" value="'+today()+'"></div></div>'
+      +'<div class="fr"><div class="fg"><label class="fl">Role Applied</label><select class="fsl" id="hr_role"><option>PFC</option><option>PM</option><option>CC</option><option>Ambassador</option></select></div>'
+      +'<div class="fg"><label class="fl">Stage</label><select class="fsl" id="hr_stage"><option>1st Interview</option><option>2nd Interview</option><option>Final Interview</option><option>Assessment</option></select></div></div>'
+      +'<div class="fr"><div class="fg"><label class="fl">Interviewer</label><input class="fi" id="hr_interviewer" placeholder="Name"></div>'
+      +'<div class="fg"><label class="fl">Type</label><select class="fsl" id="hr_type"><option>In-Person</option><option>Virtual</option><option>Phone</option></select></div></div>'
+      +'<div class="fg"><label class="fl">Phone</label><input class="fi" id="hr_phone" type="tel" placeholder="Candidate phone"></div>'
+      +'<div style="margin-bottom:12px;"><label class="fl">Scores (1-10)</label>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px;">'
+      +'<div><label style="font-size:11px;">Communication</label><input class="fi" type="number" id="hr_s1" min="1" max="10" placeholder="1-10"></div>'
+      +'<div><label style="font-size:11px;">Technical</label><input class="fi" type="number" id="hr_s2" min="1" max="10" placeholder="1-10"></div>'
+      +'<div><label style="font-size:11px;">Culture Fit</label><input class="fi" type="number" id="hr_s3" min="1" max="10" placeholder="1-10"></div>'
+      +'<div><label style="font-size:11px;">Initiative</label><input class="fi" type="number" id="hr_s4" min="1" max="10" placeholder="1-10"></div>'
+      +'</div></div>'
+      +'<div class="fr"><div class="fg"><label class="fl">Recommendation</label><select class="fsl" id="hr_rec"><option>Hire</option><option>Hold</option><option>Reject</option></select></div>'
+      +'<div class="fg"><label class="fl">Status</label><select class="fsl" id="hr_status"><option>Shortlisted</option><option>Offer Sent</option><option>Pending 2nd</option><option>Rejected</option></select></div></div>'
+      +'<div class="fg"><label class="fl">Remarks</label><textarea class="fi" id="hr_remarks" style="min-height:60px;" placeholder="Notes..."></textarea></div>'
+      +'<button class="btn btn-primary btn-full" onclick="submitHRForm(&quot;interview&quot;)">✓ Submit Interview</button>';
+  }
+  else if(type === 'daily'){
+    html = '<div class="sheet-title">📋 Daily Activity Log<button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>'
+      +'<div class="fg"><label class="fl">Date</label><input class="fi" type="date" id="hr_date" value="'+today()+'"></div>'
+      +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">'
+      +'<div><label style="font-size:11px;font-weight:700;">Calls Made</label><input class="fi" type="number" id="hr_calls" placeholder="0" min="0"></div>'
+      +'<div><label style="font-size:11px;font-weight:700;">Emails Sent</label><input class="fi" type="number" id="hr_emails" placeholder="0" min="0"></div>'
+      +'<div><label style="font-size:11px;font-weight:700;">Interviews</label><input class="fi" type="number" id="hr_interviews" placeholder="0" min="0"></div>'
+      +'<div><label style="font-size:11px;font-weight:700;">Follow-ups</label><input class="fi" type="number" id="hr_followups" placeholder="0" min="0"></div>'
+      +'<div><label style="font-size:11px;font-weight:700;">Offers Sent</label><input class="fi" type="number" id="hr_offers" placeholder="0" min="0"></div>'
+      +'<div><label style="font-size:11px;font-weight:700;">Tasks Done</label><input class="fi" type="number" id="hr_tasks" placeholder="0" min="0"></div>'
+      +'</div>'
+      +'<div class="fg"><label class="fl">Challenges/Blockers</label><textarea class="fi" id="hr_challenges" style="min-height:60px;" placeholder="Any issues today?"></textarea></div>'
+      +'<div class="fg"><label class="fl">Tomorrow Plan</label><textarea class="fi" id="hr_plan" style="min-height:60px;" placeholder="What will you do tomorrow?"></textarea></div>'
+      +'<button class="btn btn-primary btn-full" onclick="submitHRForm(&quot;daily&quot;)">✓ Submit Daily Log</button>';
+  }
+  else if(type === 'signup'){
+    html = '<div class="sheet-title">📈 Log Sign-up<button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>'
+      +'<div class="fr"><div class="fg"><label class="fl">Full Name</label><input class="fi" id="hr_name" placeholder="Candidate name"></div>'
+      +'<div class="fg"><label class="fl">Phone</label><input class="fi" type="tel" id="hr_phone" placeholder="Phone"></div></div>'
+      +'<div class="fr"><div class="fg"><label class="fl">Role</label><select class="fsl" id="hr_role"><option>PFC</option><option>PM</option><option>CC</option><option>Ambassador</option></select></div>'
+      +'<div class="fg"><label class="fl">Date</label><input class="fi" type="date" id="hr_date" value="'+today()+'"></div></div>'
+      +'<div class="fr"><div class="fg"><label class="fl">Campus/Institution</label><input class="fi" id="hr_campus" placeholder="School or workplace"></div>'
+      +'<div class="fg"><label class="fl">State</label><input class="fi" id="hr_state" placeholder="State"></div></div>'
+      +'<div class="fr"><div class="fg"><label class="fl">Offer Letter</label><select class="fsl" id="hr_offer"><option>Not Sent</option><option>Sent</option><option>Signed</option><option>Declined</option></select></div>'
+      +'<div class="fg"><label class="fl">Source</label><select class="fsl" id="hr_source"><option>WhatsApp</option><option>Instagram</option><option>Referral</option><option>LinkedIn</option><option>Campus Drive</option><option>Other</option></select></div></div>'
+      +'<div class="fg"><label class="fl">Notes</label><textarea class="fi" id="hr_notes" style="min-height:60px;" placeholder="Extra notes..."></textarea></div>'
+      +'<button class="btn btn-primary btn-full" onclick="submitHRForm(&quot;signup&quot;)">✓ Log Sign-up</button>';
+  }
+  openSheet(html);
+}
+
+async function submitHRForm(type){
+  let record = {id: 'HR_'+Date.now(), date: document.getElementById('hr_date')?.value||today()};
+
+  if(type === 'interview'){
+    const s1=+document.getElementById('hr_s1').value||0;
+    const s2=+document.getElementById('hr_s2').value||0;
+    const s3=+document.getElementById('hr_s3').value||0;
+    const s4=+document.getElementById('hr_s4').value||0;
+    record = {...record,
+      candidate: document.getElementById('hr_candidate').value.trim(),
+      role: document.getElementById('hr_role').value,
+      stage: document.getElementById('hr_stage').value,
+      interviewer: document.getElementById('hr_interviewer').value.trim(),
+      type: document.getElementById('hr_type').value,
+      phone: document.getElementById('hr_phone').value.trim(),
+      recommendation: document.getElementById('hr_rec').value,
+      status: document.getElementById('hr_status').value,
+      remarks: document.getElementById('hr_remarks').value.trim(),
+      avgScore: s1||s2||s3||s4 ? ((s1+s2+s3+s4)/[s1,s2,s3,s4].filter(Boolean).length).toFixed(1) : 'N/A',
+      loggedBy: currentUser.code
+    };
+    if(!record.candidate){ alert('Enter candidate name.'); return; }
+  }
+  else if(type === 'daily'){
+    record = {...record,
+      calls: +document.getElementById('hr_calls').value||0,
+      emails: +document.getElementById('hr_emails').value||0,
+      interviews: +document.getElementById('hr_interviews').value||0,
+      followups: +document.getElementById('hr_followups').value||0,
+      offers: +document.getElementById('hr_offers').value||0,
+      tasks: +document.getElementById('hr_tasks').value||0,
+      challenges: document.getElementById('hr_challenges').value.trim(),
+      plan: document.getElementById('hr_plan').value.trim(),
+      loggedBy: currentUser.code
+    };
+  }
+  else if(type === 'signup'){
+    record = {...record,
+      name: document.getElementById('hr_name').value.trim(),
+      phone: document.getElementById('hr_phone').value.trim(),
+      role: document.getElementById('hr_role').value,
+      campus: document.getElementById('hr_campus').value.trim(),
+      state: document.getElementById('hr_state').value.trim(),
+      offerStatus: document.getElementById('hr_offer').value,
+      source: document.getElementById('hr_source').value,
+      notes: document.getElementById('hr_notes').value.trim(),
+      loggedBy: currentUser.code
+    };
+    if(!record.name){ alert('Enter candidate name.'); return; }
+  }
+
+  const logs = await getHRLogs(type==='interview'?'interviews':type==='daily'?'daily':'signups');
+  logs.push(record);
+  await saveHRLogs(type==='interview'?'interviews':type==='daily'?'daily':'signups', logs);
+  closeSheet();
+  renderTab('hr');
+  alert('✅ Logged successfully!');
+}
+
+async function deleteHR(key){
+  const [type, id] = key.split('|');
+  if(!confirm('Delete this record?')) return;
+  const logs = await getHRLogs(type);
+  await saveHRLogs(type, logs.filter(r=>r.id!==id));
+  renderTab('hr');
+}
+
+async function exportHRData(type){
+  const typeMap = {interviews:'interviews', daily:'daily', signups:'signups'};
+  const logs = await getHRLogs(typeMap[type]||type);
+  if(logs.length===0){ alert('No data to export.'); return; }
+  const headers = Object.keys(logs[0]).filter(k=>k!=='id').join(',');
+  const rows = logs.map(r=>Object.entries(r).filter(([k])=>k!=='id').map(([,v])=>'"'+(v||'').toString().replace(/"/g,'""')+'"').join(','));
+  const csv = headers + '\n' + rows.join('\n');
+  const blob = new Blob([csv],{type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download='RehoVTU_HR_'+type+'_'+today()+'.csv';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+
+// ═══════════════════════════════════════════════════════════
+// WITHDRAWAL SYSTEM
+// ═══════════════════════════════════════════════════════════
+async function renderWithdrawalTab(){
+  const me = currentUser;
+  const withdrawals = (await getWithdrawals()).filter(w=>w.memberCode===me.code);
+  const members = await getMembers();
+  const member = members.find(m=>m.code===me.code)||me;
+  const balance = member.balance||0;
+  const pending = withdrawals.filter(w=>w.status==='pending').reduce((s,w)=>s+(w.amount||0),0);
+
+  return '<div class="sec-title">💰 Withdraw Earnings</div>'
+    +'<div style="background:linear-gradient(135deg,#0d1b2a,#1a3a8f);color:#fff;border-radius:14px;padding:16px;margin-bottom:16px;">'
+    +'<div style="font-size:11px;opacity:.7;margin-bottom:4px;">AVAILABLE BALANCE</div>'
+    +'<div style="font-size:32px;font-weight:900;color:#e8a020;">N'+balance.toLocaleString()+'</div>'
+    +(pending > 0 ? '<div style="font-size:12px;opacity:.7;margin-top:4px;">N'+pending.toLocaleString()+' pending approval</div>' : '')
+    +'</div>'
+    +(balance > 0
+      ? '<button class="btn btn-primary btn-full" style="margin-bottom:16px;" onclick="openWithdrawRequest()">💸 Request Withdrawal</button>'
+      : '<div style="background:#f8fafc;border-radius:10px;padding:12px;margin-bottom:16px;font-size:13px;color:var(--muted);text-align:center;">No balance available to withdraw</div>')
+    +'<div class="sec-title" style="font-size:13px;">Withdrawal History</div>'
+    +(withdrawals.length===0
+      ? '<div class="empty"><div>No withdrawal requests yet</div></div>'
+      : [...withdrawals].reverse().map(w=>'<div class="card" style="margin-bottom:8px;border-left:3px solid '
+        +(w.status==='approved'?'#1a6b3c':w.status==='rejected'?'#b91c1c':'#e8a020')+';">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;">'
+        +'<div><div style="font-weight:700;">N'+w.amount.toLocaleString()+'</div>'
+        +'<div style="font-size:11px;color:var(--muted);">'+w.date+' · '+w.bank+' '+w.accNum+'</div></div>'
+        +'<span style="font-size:10px;padding:2px 8px;border-radius:10px;font-weight:700;background:'
+        +(w.status==='approved'?'#d4f0e0;color:#1a6b3c':w.status==='rejected'?'#fee2e2;color:#b91c1c':'#fff8e0;color:#92600a')
+        +';">'+w.status.toUpperCase()+'</span>'
+        +'</div>'
+        +(w.note ? '<div style="font-size:11px;color:var(--muted);margin-top:4px;">'+w.note+'</div>' : '')
+        +'</div>').join(''));
+}
+
+function openWithdrawRequest(){
+  const m = currentUser;
+  openSheet(
+    '<div class="sheet-title">💸 Request Withdrawal<button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>'
+    +'<div class="fg"><label class="fl">Amount (N)</label><input class="fi" type="number" id="wd_amount" placeholder="Enter amount" min="500"></div>'
+    +'<div class="fg"><label class="fl">Bank Name</label><input class="fi" id="wd_bank" placeholder="e.g. GTBank" value="'+(m.bank||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Account Number</label><input class="fi" id="wd_accnum" placeholder="10-digit account number" value="'+(m.accNum||'')+'"></div>'
+    +'<div class="fg"><label class="fl">Account Name</label><input class="fi" id="wd_accname" placeholder="Name on account" value="'+(m.accName||'')+'"></div>'
+    +'<div style="background:#fff8e0;border-radius:8px;padding:10px;font-size:12px;color:#92600a;margin-bottom:12px;">Your request will be reviewed by the Founder within 24-48 hours.</div>'
+    +'<button class="btn btn-primary btn-full" onclick="submitWithdrawRequest()">Submit Request</button>'
+  );
+}
+
+async function submitWithdrawRequest(){
+  const amount = +document.getElementById('wd_amount').value;
+  const bank = document.getElementById('wd_bank').value.trim();
+  const accNum = document.getElementById('wd_accnum').value.trim();
+  const accName = document.getElementById('wd_accname').value.trim();
+  if(!amount||amount<500){ alert('Minimum withdrawal is N500.'); return; }
+  if(!bank||!accNum||!accName){ alert('Fill in all bank details.'); return; }
+
+  const members = await getMembers();
+  const idx = members.findIndex(m=>m.code===currentUser.code);
+  if(idx<0) return;
+  if((members[idx].balance||0) < amount){ alert('Insufficient balance.'); return; }
+
+  const withdrawals = await getWithdrawals();
+  withdrawals.push({
+    id:'W_'+Date.now(), memberCode:currentUser.code,
+    memberName:currentUser.name, amount, bank, accNum, accName,
+    date:today(), status:'pending', note:''
+  });
+  await saveWithdrawals(withdrawals);
+
+  // Notify founder
+  const founder = members.find(m=>m.role==='founder');
+  if(founder&&founder.email) sendEmail(founder.email, founder.name,
+    'Withdrawal Request — '+currentUser.name,
+    '<p>'+currentUser.name+' ('+currentUser.code+') has requested a withdrawal of <b>N'+amount.toLocaleString()+'</b>.</p>'
+    +'<p>Bank: '+bank+'<br>Account: '+accNum+'<br>Name: '+accName+'</p>'
+    +'<p>Log in to approve or reject.</p>');
+
+  closeSheet();
+  renderTab('withdraw');
+  alert('Request submitted! You will be notified within 24-48 hours.');
+}
+
+// Founder withdrawal management (in monthly tab)
+async function renderWithdrawalRequests(){
+  const withdrawals = await getWithdrawals();
+  const pending = withdrawals.filter(w=>w.status==='pending');
+  if(pending.length===0) return '<div style="font-size:13px;color:var(--muted);">No pending withdrawal requests</div>';
+  return pending.map(w=>'<div class="card" style="margin-bottom:8px;border-left:3px solid #e8a020;">'
+    +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
+    +'<div><div style="font-weight:700;">'+w.memberName+' ('+w.memberCode+')</div>'
+    +'<div style="font-size:13px;color:#1a6b3c;font-weight:800;">N'+w.amount.toLocaleString()+'</div>'
+    +'<div style="font-size:11px;color:var(--muted);">'+w.bank+' · '+w.accNum+' · '+w.accName+'</div>'
+    +'<div style="font-size:11px;color:var(--muted);">Requested: '+w.date+'</div>'
+    +'</div></div>'
+    +'<div style="display:flex;gap:6px;margin-top:8px;">'
+    +'<button class="btn btn-sm" style="flex:1;background:#d4f0e0;color:#1a6b3c;border:none;" data-action="approveWithdrawal" data-oid="'+w.id+'">✅ Approve & Pay</button>'
+    +'<button class="btn btn-sm" style="flex:1;background:#fee2e2;color:#b91c1c;border:none;" data-action="rejectWithdrawal" data-oid="'+w.id+'">❌ Reject</button>'
+    +'</div>'
+    +'</div>').join('');
+}
+
+async function approveWithdrawal(id){
+  if(!confirm('Mark this withdrawal as paid?')) return;
+  const withdrawals = await getWithdrawals();
+  const idx = withdrawals.findIndex(w=>w.id===id);
+  if(idx<0) return;
+  const w = withdrawals[idx];
+  withdrawals[idx].status = 'approved';
+  withdrawals[idx].paidDate = today();
+  await saveWithdrawals(withdrawals);
+  // Deduct from member balance
+  const members = await getMembers();
+  const midx = members.findIndex(m=>m.code===w.memberCode);
+  if(midx>=0){
+    members[midx].balance = Math.max(0,(members[midx].balance||0)-w.amount);
+    members[midx].pendingPayout = Math.max(0,(members[midx].pendingPayout||0)-w.amount);
+    await saveMembers(members);
+  }
+  // Notify member
+  const member = members[midx];
+  if(member&&member.email) sendEmail(member.email, member.name,
+    'Withdrawal Approved — N'+w.amount.toLocaleString(),
+    '<p>Hi '+member.name+',</p><p>Your withdrawal of <b>N'+w.amount.toLocaleString()+'</b> has been approved and paid to '+w.bank+' '+w.accNum+'.</p><p>RehoVTU Team</p>');
+  renderTab('monthly');
+  alert('Paid! N'+w.amount.toLocaleString()+' to '+w.memberName);
+}
+
+async function rejectWithdrawal(id){
+  const reason = prompt('Reason for rejection (optional):');
+  if(reason === null) return;
+  const withdrawals = await getWithdrawals();
+  const idx = withdrawals.findIndex(w=>w.id===id);
+  if(idx<0) return;
+  const w = withdrawals[idx];
+  withdrawals[idx].status = 'rejected';
+  withdrawals[idx].note = reason||'Rejected by Founder';
+  await saveWithdrawals(withdrawals);
+  const members = await getMembers();
+  const member = members.find(m=>m.code===w.memberCode);
+  if(member&&member.email) sendEmail(member.email, member.name,
+    'Withdrawal Request Update',
+    '<p>Hi '+member.name+',</p><p>Your withdrawal request of N'+w.amount.toLocaleString()+' was not approved at this time.</p>'
+    +(reason?'<p>Reason: '+reason+'</p>':'')+'<p>Contact us for more info.</p>');
+  renderTab('monthly');
+  alert('Rejected.');
+}
+
+// ═══════════════════════════════════════════════════════════
+// SMM TAB
+// ═══════════════════════════════════════════════════════════
+let _smmTab = 'posts';
+
+async function renderSMMTab(){
+  const posts = await getSMMPosts();
+  const assets = await getSMMAssets();
+
+  const tabBar = '<div style="display:flex;gap:6px;margin-bottom:16px;">'
+    +'<button class="btn btn-sm" data-t="posts" style="'+(  _smmTab==='posts'?'background:var(--primary);color:#fff;':'background:var(--surface);')+'" onclick="_smmTab=this.dataset.t;renderTab(this.dataset.tab)" data-tab="smm">📅 Posts ('+posts.length+')</button>'
+    +'<button class="btn btn-sm" data-t="assets" style="'+(  _smmTab==='assets'?'background:var(--primary);color:#fff;':'background:var(--surface);')+'" onclick="_smmTab=this.dataset.t;renderTab(this.dataset.tab)" data-tab="smm">🖼 Assets ('+assets.length+')</button>'
+    +'</div>';
+
+  let body = '';
+
+  if(_smmTab === 'posts'){
+    body = '<button class="btn btn-primary btn-sm" style="margin-bottom:12px;" onclick="openNewPost()">+ New Post</button>'
+      +(posts.length===0
+        ? '<div class="empty"><div style="font-size:28px">📱</div><div>No posts yet. Add your first content post!</div></div>'
+        : [...posts].reverse().map(p=>{
+            const statusColor = p.status==='published'?'#1a6b3c':p.status==='scheduled'?'#1a3a8f':'#92600a';
+            const statusBg = p.status==='published'?'#d4f0e0':p.status==='scheduled'?'#e0f0ff':'#fff8e0';
+            return '<div class="card" style="margin-bottom:10px;">'
+              +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">'
+              +'<div style="flex:1;min-width:0;"><div style="font-weight:700;font-size:14px;">'+p.title+'</div>'
+              +'<div style="font-size:11px;color:var(--muted);">'+(p.platform||'All platforms')+' · '+(p.scheduledDate||p.date)+'</div></div>'
+              +'<span style="font-size:10px;padding:2px 8px;border-radius:10px;font-weight:700;background:'+statusBg+';color:'+statusColor+';flex-shrink:0;">'+p.status.toUpperCase()+'</span>'
+              +'</div>'
+              +'<div style="font-size:13px;color:#334155;white-space:pre-wrap;margin-bottom:8px;">'+p.caption+'</div>'
+              +(p.link ? '<div style="margin-bottom:8px;"><a href="'+p.link+'" target="_blank" style="font-size:12px;color:var(--primary);">🔗 '+p.link+'</a></div>' : '')
+              +'<div style="display:flex;gap:6px;">'
+              +'<button class="btn btn-sm" style="background:#e0f0ff;color:#1a3a8f;border:none;flex:1;" data-action="sharePostToMembers" data-oid="'+p.id+'">📤 Share to Team</button>'
+              +'<button class="btn btn-sm" style="background:#fee2e2;color:#b91c1c;border:none;" data-action="deleteSMMPost" data-oid="'+p.id+'">🗑</button>'
+              +'</div>'
+              +'</div>';
+          }).join(''));
+  }
+
+  else if(_smmTab === 'assets'){
+    body = '<button class="btn btn-primary btn-sm" style="margin-bottom:12px;" onclick="openNewAsset()">+ Add Asset</button>'
+      +'<div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Graphics and templates your team can download and use for promotion.</div>'
+      +(assets.length===0
+        ? '<div class="empty"><div style="font-size:28px">🖼</div><div>No assets yet. Upload graphics for your team!</div></div>'
+        : '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">'
+          + assets.map(a=>'<div class="card" style="padding:10px;text-align:center;">'
+            +(a.imageHTML ? a.imageHTML : '<div style="background:var(--surface);height:80px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:24px;margin-bottom:8px;">🖼</div>')
+            +'<div style="font-size:12px;font-weight:700;margin-bottom:4px;">'+a.title+'</div>'
+            +'<div style="font-size:10px;color:var(--muted);margin-bottom:8px;">'+a.category+'</div>'
+            +'<button class="btn btn-sm" style="width:100%;background:var(--green);color:#fff;border:none;font-size:11px;" data-action="downloadAsset" data-oid="'+a.id+'">⬇ Download</button>'
+            +'</div>').join('')
+          +'</div>');
+  }
+
+  return '<div class="sec-title">📱 Social Media Manager</div>'
+    + tabBar + body;
+}
+
+function openNewPost(){
+  openSheet(
+    '<div class="sheet-title">📅 New Post<button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>'
+    +'<div class="fg"><label class="fl">Title</label><input class="fi" id="smm_title" placeholder="e.g. June Recruitment Drive"></div>'
+    +'<div class="fg"><label class="fl">Caption / Message</label>'
+    +'<textarea id="smm_caption" style="width:100%;min-height:120px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;" placeholder="Write the post caption..."></textarea></div>'
+    +'<div class="fr"><div class="fg"><label class="fl">Platform</label><select class="fsl" id="smm_platform"><option>All Platforms</option><option>WhatsApp</option><option>Instagram</option><option>Facebook</option><option>Twitter/X</option><option>TikTok</option></select></div>'
+    +'<div class="fg"><label class="fl">Status</label><select class="fsl" id="smm_status"><option value="draft">Draft</option><option value="scheduled">Scheduled</option><option value="published">Published</option></select></div></div>'
+    +'<div class="fg"><label class="fl">Scheduled Date (optional)</label><input class="fi" type="date" id="smm_date"></div>'
+    +'<div class="fg"><label class="fl">Link (optional)</label><input class="fi" id="smm_link" placeholder="https://..."></div>'
+    +imagePickerHTML('smm_img','smm_img_preview')
+    +'<button class="btn btn-primary btn-full" onclick="submitNewPost()">Save Post</button>'
+  );
+}
+
+async function submitNewPost(){
+  const title = document.getElementById('smm_title').value.trim();
+  const caption = document.getElementById('smm_caption').value.trim();
+  if(!title||!caption){ alert('Fill in title and caption.'); return; }
+  const imageHTML = await getEmailImageHTML('smm_img').catch(()=>'');
+  const posts = await getSMMPosts();
+  posts.push({
+    id:'P_'+Date.now(), title, caption,
+    platform: document.getElementById('smm_platform').value,
+    status: document.getElementById('smm_status').value,
+    scheduledDate: document.getElementById('smm_date').value||'',
+    link: document.getElementById('smm_link').value.trim(),
+    imageHTML, date: today()
+  });
+  await saveSMMPosts(posts);
+  closeSheet();
+  renderTab('smm');
+  alert('Post saved!');
+}
+
+async function sharePostToMembers(postId){
+  const posts = await getSMMPosts();
+  const p = posts.find(x=>x.id===postId);
+  if(!p){ alert('Post not found.'); return; }
+  if(!confirm('Send this post to all members via email?')) return;
+  const members = await getMembers();
+  const recipients = members.filter(m=>m.role!=='founder'&&m.email);
+  const htmlBody = '<div style="font-family:sans-serif;max-width:520px;margin:0 auto;">'
+    +'<div style="background:#0d1b2a;padding:16px 24px;border-radius:12px 12px 0 0;text-align:center;">'
+    +'<span style="font-size:22px;font-weight:900;color:#fff;">Reho<span style="color:#e8a020;">VTU</span></span>'
+    +'</div>'
+    +'<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">'
+    +'<h2 style="font-size:18px;font-weight:800;color:#0d1b2a;margin:0 0 12px;">'+p.title+'</h2>'
+    +'<p style="color:#334155;font-size:14px;white-space:pre-wrap;">'+p.caption+'</p>'
+    +(p.imageHTML||'')
+    +(p.link ? '<div style="margin:16px 0;text-align:center;"><a href="'+p.link+'" style="background:#1a3a8f;color:#fff;padding:10px 20px;border-radius:8px;font-weight:700;text-decoration:none;">View Post →</a></div>' : '')
+    +'<div style="margin-top:16px;padding:10px;background:#f0fdf4;border-radius:8px;font-size:12px;color:#1a6b3c;font-weight:700;">Like, comment and share to support RehoVTU!</div>'
+    +'<hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0;">'
+    +'<p style="font-size:11px;color:#94a3b8;">RehoVTU Team | rehovtu@gmail.com | 09037066499</p>'
+    +'</div></div>';
+  let sent=0;
+  for(const m of recipients){
+    const ok = await sendEmail(m.email, m.name, 'New RehoVTU Post — '+p.title, htmlBody);
+    if(ok) sent++;
+  }
+  alert('Shared with '+sent+' team members!');
+}
+
+async function deleteSMMPost(id){
+  if(!confirm('Delete this post?')) return;
+  const posts = await getSMMPosts();
+  await saveSMMPosts(posts.filter(p=>p.id!==id));
+  renderTab('smm');
+}
+
+function openNewAsset(){
+  openSheet(
+    '<div class="sheet-title">🖼 Add Asset<button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>'
+    +'<div class="fg"><label class="fl">Title</label><input class="fi" id="ast_title" placeholder="e.g. June Recruitment Flyer"></div>'
+    +'<div class="fg"><label class="fl">Category</label><select class="fsl" id="ast_cat"><option>Recruitment</option><option>VTU Site Sales</option><option>Incentive</option><option>Announcement</option><option>General</option></select></div>'
+    +imagePickerHTML('ast_img','ast_img_preview')
+    +'<div class="fg"><label class="fl">Or paste image/drive link</label><input class="fi" id="ast_link" placeholder="https://drive.google.com/..."></div>'
+    +'<button class="btn btn-primary btn-full" onclick="submitNewAsset()">Save Asset</button>'
+  );
+}
+
+async function submitNewAsset(){
+  const title = document.getElementById('ast_title').value.trim();
+  if(!title){ alert('Enter a title.'); return; }
+  const imageHTML = await getEmailImageHTML('ast_img').catch(()=>'');
+  const link = document.getElementById('ast_link').value.trim();
+  const assets = await getSMMAssets();
+  assets.push({
+    id:'AST_'+Date.now(), title,
+    category: document.getElementById('ast_cat').value,
+    imageHTML, link, date: today()
+  });
+  await saveSMMAssets(assets);
+  closeSheet();
+  renderTab('smm');
+  alert('Asset saved!');
+}
+
+async function downloadAsset(id){
+  const assets = await getSMMAssets();
+  const a = assets.find(x=>x.id===id);
+  if(!a){ alert('Asset not found.'); return; }
+  if(a.link){
+    window.open(a.link,'_blank');
+    return;
+  }
+  if(a.imageHTML){
+    const match = a.imageHTML.match(/src="([^"]+)"/);
+    if(match){
+      const link = document.createElement('a');
+      link.href = match[1];
+      link.download = a.title.replace(/\s/g,'_')+'.png';
+      document.body.appendChild(link); link.click();
+      document.body.removeChild(link);
+      return;
+    }
+  }
+  alert('No downloadable content for this asset.');
+}
+
 
 async function renderBuilderDash(){
   const [members,orders]=await Promise.all([getMembers(),getOrders()]);
@@ -3624,6 +4211,8 @@ async function renderMonthlyCycleTab(){
       <div class="stat red"><div class="stat-label">Pending Payout</div><div class="stat-value neg" style="font-size:13px">₦${totalPending.toLocaleString()}</div></div>
     </div>
 
+    <div class="sec-title" style="margin-top:16px;">💸 Withdrawal Requests</div>
+    \${await renderWithdrawalRequests()}
     <div class="sec-title" style="margin-top:16px;">💰 Pending Payouts</div>
     ${members.filter(m=>m.role!=='founder'&&(m.pendingPayout||0)>0).length===0
       ?'<div class="empty" style="margin-bottom:16px;"><div>No pending payouts</div></div>'
