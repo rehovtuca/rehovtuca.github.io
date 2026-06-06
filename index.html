@@ -557,16 +557,24 @@ const REHOVTU_ACCT={name:'RehoVTU',bank:'Guaranty Trust Bank',number:'3004221210
 // Brevo email — key is split+encoded so GitHub scanner cannot detect it
 const _kp=['eGtleXNpYi0xOGIxZGFiZjkzY2UzYT','VlNGUyZjZlNWI4MGI5YTVjOWQ0MWU1','ZDc2YzVkNjIwMWUxZmMwZWM5MzYxOWE5OTQ3LVFlY2lLNzRXME1zVXJxRHQ='];
 function _gk(){return atob(_kp.join(''));}
-async function sendEmail(to,toName,subject,html){
+async function sendEmail(to,toName,subject,html,attachments){
   if(!to||!to.includes('@')){
     alert('No valid email for this customer. Cannot send.');
     return false;
   }
   try{
+    const payload = {
+      sender:{name:'RehoVTU',email:'rehovtu@gmail.com'},
+      to:[{email:to,name:toName}],
+      subject, htmlContent:html
+    };
+    if(attachments&&attachments.length>0){
+      payload.attachment = attachments.map(a=>({name:a.name,content:a.content}));
+    }
     const res=await fetch('https://api.brevo.com/v3/smtp/email',{
       method:'POST',
       headers:{'accept':'application/json','api-key':_gk(),'content-type':'application/json'},
-      body:JSON.stringify({sender:{name:'RehoVTU',email:'rehovtu@gmail.com'},to:[{email:to,name:toName}],subject,htmlContent:html})
+      body:JSON.stringify(payload)
     });
     if(!res.ok){
       const err=await res.json().catch(()=>({}));
@@ -2057,6 +2065,89 @@ function renderWASection(member){
           + m.emoji + ' Copy ' + m.label + '</button>';
       }).join('')
     + '</div></div>';
+}
+
+// ═══════════════════════════════════════════════════════════
+// FILE ATTACHMENT HELPER
+// ═══════════════════════════════════════════════════════════
+function attachmentPickerHTML(inputId, listId){
+  return '<div style="margin-bottom:12px;">'
+    +'<label class="fl">Attachments (optional, max 5MB each)</label>'
+    +'<div style="margin-top:4px;display:flex;gap:8px;flex-wrap:wrap;">'
+    +'<input type="file" id="'+inputId+'" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.gif,.txt" multiple style="display:none;" data-list="'+listId+'" onchange="addAttachments(this,this.dataset.list)">'
+    +'<button class="btn btn-gray btn-sm" data-input="'+inputId+'" onclick="document.getElementById(this.dataset.input).click()">📎 Attach Files</button>'
+    +'</div>'
+    +'<div id="'+listId+'" style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;"></div>'
+    +'</div>';
+}
+
+// Store attachments per form
+const _attachments = {};
+
+function addAttachments(input, listId){
+  const files = Array.from(input.files);
+  if(!_attachments[listId]) _attachments[listId] = [];
+  
+  for(const file of files){
+    if(file.size > 5 * 1024 * 1024){
+      alert(file.name+' is over 5MB and was skipped.');
+      continue;
+    }
+    // Check not already added
+    if(_attachments[listId].find(a=>a.name===file.name)) continue;
+    _attachments[listId].push(file);
+  }
+  
+  // Re-render attachment list
+  const listEl = document.getElementById(listId);
+  if(!listEl) return;
+  listEl.innerHTML = _attachments[listId].map((f,i)=>
+    '<div style="display:flex;align-items:center;gap:6px;background:#f8fafc;padding:4px 8px;border-radius:6px;font-size:12px;">'
+    +'<span>📄 '+f.name+'</span>'
+    +'<span style="color:var(--muted);">('+Math.round(f.size/1024)+'KB)</span>'
+    +'<button style="background:none;border:none;color:#b91c1c;cursor:pointer;font-size:14px;padding:0;" data-list="'+listId+'" data-idx="'+i+'" onclick="removeAttachment(this.dataset.list,+this.dataset.idx)">✕</button>'
+    +'</div>'
+  ).join('');
+  
+  // Reset input so same file can be re-added
+  input.value = '';
+}
+
+function removeAttachment(listId, idx){
+  if(!_attachments[listId]) return;
+  _attachments[listId].splice(idx, 1);
+  // Re-render
+  const listEl = document.getElementById(listId);
+  if(!listEl) return;
+  listEl.innerHTML = _attachments[listId].map((f,i)=>
+    '<div style="display:flex;align-items:center;gap:6px;background:#f8fafc;padding:4px 8px;border-radius:6px;font-size:12px;">'
+    +'<span>📄 '+f.name+'</span>'
+    +'<span style="color:var(--muted);">('+Math.round(f.size/1024)+'KB)</span>'
+    +'<button style="background:none;border:none;color:#b91c1c;cursor:pointer;font-size:14px;padding:0;" data-list="'+listId+'" data-idx="'+i+'" onclick="removeAttachment(this.dataset.list,+this.dataset.idx)">✕</button>'
+    +'</div>'
+  ).join('');
+}
+
+async function getAttachmentsBase64(listId){
+  const files = _attachments[listId]||[];
+  if(files.length===0) return [];
+  const result = [];
+  for(const file of files){
+    const base64 = await new Promise((res,rej)=>{
+      const reader = new FileReader();
+      reader.onload = e => res(e.target.result.split(',')[1]); // strip data:...;base64,
+      reader.onerror = ()=>rej(new Error('Failed to read '+file.name));
+      reader.readAsDataURL(file);
+    });
+    result.push({name:file.name, content:base64, contentType:file.type||'application/octet-stream'});
+  }
+  return result;
+}
+
+function clearAttachments(listId){
+  _attachments[listId] = [];
+  const listEl = document.getElementById(listId);
+  if(listEl) listEl.innerHTML = '';
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3595,7 +3686,11 @@ function openSheet(html){
   el('overlay').classList.remove('hidden');
   document.body.style.overflow='hidden';
 }
-function closeSheet(){el('overlay').classList.add('hidden');document.body.style.overflow='';}
+function closeSheet(){
+  // Clear any attachment state when sheet closes
+  ['be_attach_list','de_attach_list','soe_attach_list'].forEach(id=>{
+    clearAttachments(id);
+  });el('overlay').classList.add('hidden');document.body.style.overflow='';}
 function closeSheetOutside(e){if(e.target===el('overlay'))closeSheet();}
 
 // ═══════════════════════════════════════════════════════════
@@ -4967,7 +5062,8 @@ async function sendBulkEmailSiteOwners(){
       + '<p style="font-size:11px;color:#94a3b8;">RehoVTU Team | rehovtu@gmail.com | 09037066499 | rehobusiness.com.ng</p>'
       + '</div></div>';
 
-    const ok = await sendEmail(o.email, o.name, subject, htmlBody);
+    const soeAttach = await getAttachmentsBase64('soe_attach_list').catch(()=>[]);
+    const ok = await sendEmail(o.email, o.name, subject, htmlBody, soeAttach);
     if(ok) sent++; else failed++;
     resultEl.innerHTML = '<div style="font-size:13px;color:#1a3a8f;">⏳ Sending... ' + sent + '/' + owners.length + '</div>';
   }
@@ -5395,6 +5491,7 @@ async function openDirectEmail(code){
     +'<textarea id="de_body" style="width:100%;min-height:160px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;" placeholder="Write your message here... Use {name} to personalise."></textarea>'
     +'</div>'
     +imagePickerHTML('de_img','de_img_preview')
+    +attachmentPickerHTML('de_attach','de_attach_list')
     +'<div id="de_result" style="margin-bottom:8px;"></div>'
     +'<button class="btn btn-primary btn-full" data-action="sendDirectEmail" data-oid="'+code+'">📧 Send Email</button>'
   );
@@ -5414,6 +5511,7 @@ async function sendDirectEmail(code){
 
   const personalBody = body.replace(/{name}/g, m.name.split(' ')[0]);
   const imgHTML = await getEmailImageHTML('de_img').catch(()=>'');
+  const attachments = await getAttachmentsBase64('de_attach_list').catch(()=>[]);
   const htmlBody = '<div style="font-family:sans-serif;max-width:520px;margin:0 auto;">'
     +'<div style="background:#0d1b2a;padding:16px 24px;border-radius:12px 12px 0 0;text-align:center;">'
     +'<span style="font-size:22px;font-weight:900;color:#fff;">Reho<span style="color:#e8a020;">VTU</span></span>'
@@ -5425,7 +5523,7 @@ async function sendDirectEmail(code){
     +'<p style="font-size:11px;color:#94a3b8;">RehoVTU Team | rehovtu@gmail.com | 09037066499</p>'
     +'</div></div>';
 
-  const ok = await sendEmail(m.email, m.name, subject, htmlBody);
+  const ok = await sendEmail(m.email, m.name, subject, htmlBody, attachments);
   if(ok){
     resultEl.innerHTML = '<div style="color:#1a6b3c;font-weight:700;font-size:13px;">✅ Email sent to '+m.name+'!</div>';
     setTimeout(()=>closeSheet(), 1500);
@@ -5457,6 +5555,7 @@ async function openBulkEmail(){
     +'<textarea id="be_body" style="width:100%;min-height:140px;padding:10px;border:1px solid var(--border);border-radius:8px;font-size:13px;font-family:inherit;resize:vertical;" placeholder="Write your message here... Use {name} to personalise each message."></textarea>'
     +'</div>'
     +imagePickerHTML('be_img','be_img_preview')
+    +attachmentPickerHTML('be_attach','be_attach_list')
     +'<div id="be_result" style="margin-bottom:8px;"></div>'
     +'<button class="btn btn-primary btn-full" onclick="sendBulkEmail()">📧 Send to Selected</button>'
   );
@@ -5529,7 +5628,7 @@ async function sendBulkEmail(){
       +'<hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0;">'
       +'<p style="font-size:11px;color:#94a3b8;">RehoVTU Team · rehovtu@gmail.com · 09037066499</p>'
       +'</div></div>';
-    const ok = await sendEmail(r.email, r.name, subject, htmlBody);
+    const ok = await sendEmail(r.email, r.name, subject, htmlBody, attachments);
     if(ok) sent++; else failed++;
     resultEl.innerHTML = '<div style="font-size:13px;color:#1a3a8f;">⏳ Sending... '+sent+'/'+recipients.length+'</div>';
   }
