@@ -905,7 +905,13 @@ async function doRegister(){
       </div>
       <p style="font-size:13px;color:#334155;">Log in at <a href="https://rehobusiness.com.ng" style="color:#1a3a8f;font-weight:700;">rehobusiness.com.ng</a> using your email and password.</p>
       <p style="font-size:13px;color:#334155;">Your referral link: <code style="background:#f8fafc;padding:2px 6px;border-radius:4px;font-size:12px;">rehobusiness.com.ng/?ref=${code}&amp;join=${DOWNLINE[role]||'ambassador'}</code></p>
-    <p style="font-size:13px;color:#334155;margin-top:8px;">🌐 VTU Site Order link: <code style="background:#fff8e0;padding:2px 6px;border-radius:4px;font-size:12px;">rehobusiness.com.ng/?siteref=${code}</code><br><span style="font-size:11px;color:#888;">Share this — earn commission when someone orders a site through you!</span></p>
+    <div style="background:#fff8e0;border-radius:10px;padding:12px 14px;margin-top:12px;">
+      <div style="font-weight:700;font-size:13px;margin-bottom:4px;">🌐 Share to get VTU site orders:</div>
+      <code style="font-size:11px;word-break:break-all;">${location.origin}${location.pathname}?siteref=${code}</code>
+      <button class="btn btn-sm" style="margin-top:6px;width:100%;background:#e8a020;color:#0d1b2a;border:none;" onclick="navigator.clipboard?navigator.clipboard.writeText(location.origin+location.pathname+'?siteref=${code}').then(()=>alert('Site order link copied!')):alert(location.origin+location.pathname+'?siteref=${code}')">📋 Copy Site Order Link</button>
+    </div>
+    <!-- site order link shown above as a card -->
+    <p style="display:none;">🌐 VTU Site Order link: <code style="background:#fff8e0;padding:2px 6px;border-radius:4px;font-size:12px;">rehobusiness.com.ng/?siteref=${code}</code><br><span style="font-size:11px;color:#888;">Share this — earn commission when someone orders a site through you!</span></p>
     `+regFooter);
 
   // Notify the upline member that someone joined under them
@@ -1055,6 +1061,8 @@ async function showApp(){
   setTimeout(loadBellCount,1000);
   setInterval(loadBellCount,60000);
   setInterval(checkAndApplyFines,300000);
+  setInterval(checkReportDeadlines,3600000); // Check every hour
+  checkReportDeadlines(); // Also check on load
 
   // ── Order button event delegation ─────────────────────────────────────────
   // All order action buttons use data-action + data-oid — zero quote-escaping issues
@@ -1079,14 +1087,48 @@ async function showApp(){
     else if(action === 'rejectWithdrawal')    await rejectWithdrawal(oid);
     else if(action === 'sharePostToMembers')  await sharePostToMembers(oid);
     else if(action === 'deleteSMMPost')       await deleteSMMPost(oid);
+    else if(action === 'deleteSMMReport')     await deleteSMMReport(oid);
+    else if(action === 'approveOffer')        await approveOffer(oid);
+    else if(action === 'deleteOffer')         await deleteOffer(oid);
     else if(action === 'downloadAsset')       await downloadAsset(oid);
     else if(action === 'verifyMember')        await verifyMember(oid);
+    else if(action === 'reinstateMember')     await reinstateMember(oid);
   });
 }
 
 function buildNav(){
-  const tabs=getTabs();
-  el('navBar').innerHTML=tabs.map(t=>`<button class="nav-tab ${t.id===currentTab?'active':''}" onclick="renderTab('${t.id}')">${t.label}</button>`).join('');
+  const tabs = getTabs();
+  const current = tabs.find(t=>t.id===currentTab);
+  el('navBar').innerHTML =
+    '<div style="display:flex;align-items:center;gap:8px;padding:0 4px;">'
+    +'<button id="hamburgerBtn" onclick="toggleNavMenu()" style="background:none;border:none;cursor:pointer;padding:6px 8px;border-radius:8px;display:flex;flex-direction:column;gap:4px;">'
+    +'<span style="display:block;width:20px;height:2px;background:#fff;border-radius:2px;"></span>'
+    +'<span style="display:block;width:20px;height:2px;background:#fff;border-radius:2px;"></span>'
+    +'<span style="display:block;width:20px;height:2px;background:#fff;border-radius:2px;"></span>'
+    +'</button>'
+    +'<span style="color:#fff;font-size:13px;font-weight:700;opacity:.9;">'+(current?current.label:'Menu')+'</span>'
+    +'</div>'
+    +'<div id="navDropdown" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:999;" onclick="closeNavMenu(event)">'
+    +'<div style="position:absolute;top:0;left:0;width:240px;height:100%;background:#0d1b2a;box-shadow:4px 0 20px rgba(0,0,0,.5);overflow-y:auto;padding:16px 0;">'
+    +'<div style="padding:16px 20px 12px;border-bottom:1px solid rgba(255,255,255,.1);margin-bottom:8px;">'
+    +'<div style="font-weight:900;font-size:18px;color:#fff;">Reho<span style="color:#e8a020;">VTU</span></div>'
+    +'<div style="font-size:11px;color:rgba(255,255,255,.5);margin-top:2px;">'+currentUser.name+'</div>'
+    +'</div>'
+    +tabs.map(t=>'<button data-id="'+t.id+'" onclick="closeNavMenu();renderTab(this.dataset.id)" style="display:block;width:100%;text-align:left;padding:12px 20px;background:'+(t.id===currentTab?'rgba(255,255,255,.1)':'none')+';border:none;color:#fff;font-size:14px;cursor:pointer;font-weight:'+(t.id===currentTab?'700':'400')+';">'
+      +(t.id===currentTab?'▶ ':'')+t.label+'</button>').join('')
+    +'</div>'
+    +'</div>';
+}
+
+function toggleNavMenu(){
+  const dd = document.getElementById('navDropdown');
+  if(dd) dd.style.display = dd.style.display==='none' ? 'flex' : 'none';
+}
+
+function closeNavMenu(e){
+  const dd = document.getElementById('navDropdown');
+  if(!dd) return;
+  if(!e || e.target===dd || e.target.closest('button[onclick*="renderTab"]')) dd.style.display='none';
 }
 
 async function renderTab(tab){
@@ -1259,6 +1301,7 @@ async function openMemberDetail(code){
       <button class="btn btn-gold btn-sm" onclick="openEditMember('${m.code}')">✏️ Edit</button>
       <button class="btn btn-gray btn-sm" onclick="openPromoteDemote('${m.code}')">⬆⬇ Promote/Demote</button>
       <button class="btn btn-gray btn-sm" style="background:#e0f0ff;color:#1a3a8f;" onclick="viewMemberActivity('${m.code}')">📋 Activity</button>
+      ${m.suspended ? '<button class="btn btn-sm" style="background:#fee2e2;color:#b91c1c;" data-action="reinstateMember" data-oid="'+m.code+'">🔓 Reinstate</button>' : ''}
       ${!m.verified ? '<button class="btn btn-sm" style="background:#d4f0e0;color:#1a6b3c;" data-action="verifyMember" data-oid="'+m.code+'">✅ Verify</button>' : '<span style="font-size:10px;background:#d4f0e0;color:#1a6b3c;padding:2px 8px;border-radius:8px;font-weight:700;">✓ Verified</span>'}
       <button class="btn btn-gray btn-sm" style="background:#d4f0e0;color:#1a6b3c;" onclick="openDirectEmail('${m.code}')">📧 Email</button>
       <button class="btn btn-gray btn-sm" onclick="openTransfer('${m.code}')">🔀 Transfer</button>
@@ -2415,6 +2458,26 @@ async function saveSMMAssets(d){ LS.set('smm_assets',d); try{ await FB.set('smm_
 // ═══════════════════════════════════════════════════════════
 // MEMBER VERIFICATION
 // ═══════════════════════════════════════════════════════════
+async function reinstateMember(code){
+  if(!confirm('Reinstate this member? Their suspension will be lifted.')) return;
+  const members = await getMembers();
+  const idx = members.findIndex(m=>m.code===code);
+  if(idx<0) return;
+  members[idx].suspended = false;
+  members[idx].suspendedDate = null;
+  members[idx].suspendedReason = null;
+  await saveMembers(members);
+  const m = members[idx];
+  if(m.email) sendEmail(m.email, m.name, 'Your RehoVTU Account Has Been Reinstated',
+    '<p>Hi '+m.name+',</p>'
+    +'<p>Your account has been reinstated by the Founder.</p>'
+    +'<p>You can now log in at <a href="https://rehobusiness.com.ng">rehobusiness.com.ng</a>.</p>'
+    +'<p>Please ensure you submit your daily reports on time going forward.</p>'
+    +'<p>RehoVTU Team</p>');
+  renderTab('members');
+  alert('✅ '+m.name+' reinstated. Email sent.');
+}
+
 async function verifyMember(code){
   const members = await getMembers();
   const idx = members.findIndex(m=>m.code===code);
@@ -2445,6 +2508,7 @@ async function renderHRTab(){
     {id:'interviews', label:'🎤 Interviews', count: interviews.length},
     {id:'daily', label:'📋 Daily Logs', count: daily.length},
     {id:'signups', label:'📈 Sign-up Tracking', count: signups.length},
+    {id:'offers', label:'📄 Offer Letters', count: 0},
   ];
 
   const tabBar = '<div style="display:flex;gap:6px;margin-bottom:16px;overflow-x:auto;">'
@@ -2501,6 +2565,42 @@ async function renderHRTab(){
           +'<span style="font-size:10px;padding:2px 6px;border-radius:8px;background:'+(r.offerStatus==='Signed'?'#d4f0e0;color:#1a6b3c':'#fff8e0;color:#92600a')+';">'+r.offerStatus+'</span>'
           +'</div>'
           +'<button class="btn btn-sm" style="margin-top:6px;background:#fee2e2;color:#b91c1c;border:none;font-size:11px;" data-action="deleteHR" data-oid="signups|'+r.id+'">🗑 Delete</button>'
+          +'</div>').join(''));
+  }
+
+  // Offer letters tab
+  if(_hrTab === 'offers'){
+    const offers = await getOfferLetters();
+    const offerCount = offers.length;
+    // Update count in tab
+    body = '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;">'
+      +'<a href="https://rehovtuoffer.netlify.app/pfc" target="_blank" class="btn btn-sm" style="background:#1a3a8f;color:#fff;border:none;text-decoration:none;">🔗 PFC Link</a>'
+      +'<a href="https://rehovtuoffer.netlify.app/spm" target="_blank" class="btn btn-sm" style="background:#92600a;color:#fff;border:none;text-decoration:none;">🔗 SPM Link</a>'
+      +'<a href="https://rehovtuoffer.netlify.app/cc" target="_blank" class="btn btn-sm" style="background:#1a6b3c;color:#fff;border:none;text-decoration:none;">🔗 CC Link</a>'
+      +'<a href="https://rehovtuoffer.netlify.app/ca" target="_blank" class="btn btn-sm" style="background:#5c3d0a;color:#fff;border:none;text-decoration:none;">🔗 CA Link</a>'
+      +'<a href="https://rehovtuoffer.netlify.app/smm" target="_blank" class="btn btn-sm" style="background:#374151;color:#fff;border:none;text-decoration:none;">🔗 SMM Link</a>'
+      +'<a href="https://rehovtuoffer.netlify.app/hr" target="_blank" class="btn btn-sm" style="background:#7c3aed;color:#fff;border:none;text-decoration:none;">🔗 HR Link</a>'
+      +'<button class="btn btn-sm" onclick="exportOfferLetters()">⬇ Export CSV</button>'
+      +'</div>'
+      +(offers.length===0
+        ? '<div class="empty"><div style="font-size:28px">📄</div><div>No offer letters submitted yet</div></div>'
+        : offers.map(o=>'<div class="card" style="margin-bottom:10px;">'
+          +'<div style="display:flex;justify-content:space-between;align-items:flex-start;">'
+          +'<div><div style="font-weight:800;font-size:14px;">'+o.fullName+'</div>'
+          +'<div style="font-size:11px;color:var(--muted);">'+o.offeredRole+' · '+o.state+' · '+new Date(o.submittedAt).toLocaleDateString()+'</div>'
+          +'</div>'
+          +'<span style="font-size:10px;padding:2px 8px;border-radius:10px;font-weight:700;background:'+(o.status==='approved'?'#d4f0e0;color:#1a6b3c':'#fff8e0;color:#92600a')+';">'+o.status.toUpperCase()+'</span>'
+          +'</div>'
+          +'<div style="font-size:12px;margin-top:6px;display:grid;grid-template-columns:1fr 1fr;gap:3px;">'
+          +'<div>📞 '+o.phone+'</div><div>📧 '+o.email+'</div>'
+          +'<div>🏦 '+o.bank+' '+o.accNum+'</div><div>👤 '+o.accName+'</div>'
+          +'</div>'
+          +'<div style="font-size:11px;color:var(--muted);margin-top:4px;">School: '+(o.school||'—')+' · '+( o.campus||'—')+'</div>'
+          +'<div style="font-size:11px;font-style:italic;color:#374151;margin-top:4px;">Signed: '+o.signature+'</div>'
+          +'<div style="display:flex;gap:6px;margin-top:8px;">'
+          +(o.status!=='approved'?'<button class="btn btn-sm" style="flex:1;background:#d4f0e0;color:#1a6b3c;border:none;" data-action="approveOffer" data-oid="'+o.id+'">✅ Approve</button>':'')
+          +'<button class="btn btn-sm" style="background:#fee2e2;color:#b91c1c;border:none;" data-action="deleteOffer" data-oid="'+o.id+'">🗑</button>'
+          +'</div>'
           +'</div>').join(''));
   }
 
@@ -2632,6 +2732,61 @@ async function deleteHR(key){
   const logs = await getHRLogs(type);
   await saveHRLogs(type, logs.filter(r=>r.id!==id));
   renderTab('hr');
+}
+
+async function getOfferLetters(){
+  try{ const d=await FB.get('offer_letters'); if(d&&typeof d==='object') return Object.values(d); }catch{}
+  return [];
+}
+
+async function approveOffer(id){
+  const offers = await getOfferLetters();
+  const o = offers.find(x=>x.id===id);
+  if(!o){ alert('Not found.'); return; }
+  // Update status in Firebase
+  try{
+    const d = await FB.get('offer_letters');
+    if(d){
+      const key = Object.keys(d).find(k=>d[k].id===id);
+      if(key){
+        d[key].status = 'approved';
+        await FB.set('offer_letters', d);
+      }
+    }
+  }catch(e){ console.warn(e); }
+  if(o.email) sendEmail(o.email, o.fullName, 'Your RehoVTU Offer Letter is Approved!',
+    '<p>Hi '+o.fullName+',</p>'
+    +'<p>Congratulations! Your offer letter has been approved by the Founder.</p>'
+    +'<p>You can now log in to your RehoVTU dashboard at <a href="https://rehobusiness.com.ng">rehobusiness.com.ng</a></p>'
+    +'<p>Welcome to the team! 🎉</p><p>RehoVTU Team</p>');
+  renderTab('hr');
+  alert('Approved! Email sent to '+o.fullName);
+}
+
+async function deleteOffer(id){
+  if(!confirm('Delete this offer letter?')) return;
+  try{
+    const d = await FB.get('offer_letters');
+    if(d){
+      const key = Object.keys(d).find(k=>d[k].id===id);
+      if(key){ delete d[key]; await FB.set('offer_letters', d); }
+    }
+  }catch(e){ console.warn(e); }
+  renderTab('hr');
+}
+
+async function exportOfferLetters(){
+  const offers = await getOfferLetters();
+  if(offers.length===0){ alert('No offer letters to export.'); return; }
+  const fields = ['fullName','phone','email','offeredRole','state','bank','accNum','accName','school','campus','status','submittedAt'];
+  const csv = fields.join(',')+'\n'
+    + offers.map(o=>fields.map(f=>'"'+(o[f]||'').toString().replace(/"/g,'""')+'"').join(',')).join('\n');
+  const blob = new Blob([csv],{type:'text/csv'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href=url; a.download='RehoVTU_OfferLetters_'+today()+'.csv';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
 }
 
 async function exportHRData(type){
@@ -2838,6 +2993,7 @@ async function renderSMMTab(){
 
   else if(_smmTab === 'assets'){
     body = '<button class="btn btn-primary btn-sm" style="margin-bottom:12px;" onclick="openNewAsset()">+ Add Asset</button>'
+      +'<a href="'+"https://drive.google.com/drive/folders/1LY9-j53ejIkLOTvSrKhFBn4GhGOzxfhm"+'" target="_blank" class="btn btn-sm" style="margin-bottom:12px;margin-left:6px;background:#1a6b3c;color:#fff;border:none;text-decoration:none;">📁 Open Drive Folder</a>'
       +'<div style="font-size:12px;color:var(--muted);margin-bottom:10px;">Graphics and templates your team can download and use for promotion.</div>'
       +(assets.length===0
         ? '<div class="empty"><div style="font-size:28px">🖼</div><div>No assets yet. Upload graphics for your team!</div></div>'
@@ -2849,6 +3005,11 @@ async function renderSMMTab(){
             +'<button class="btn btn-sm" style="width:100%;background:var(--green);color:#fff;border:none;font-size:11px;" data-action="downloadAsset" data-oid="'+a.id+'">⬇ Download</button>'
             +'</div>').join('')
           +'</div>');
+  }
+
+  if(_smmTab === 'reports'){
+    const reports = await getSMMReports();
+    body = await renderSMMReports(reports, posts);
   }
 
   return '<div class="sec-title">📱 Social Media Manager</div>'
@@ -2976,6 +3137,136 @@ async function downloadAsset(id){
 }
 
 
+// ═══════════════════════════════════════════════════════════
+// SMM REPORTS
+// ═══════════════════════════════════════════════════════════
+async function getSMMReports(){ try{ const d=await FB.get('smm_reports'); if(d) return Array.isArray(d)?d:[]; }catch{} return LS.get('smm_reports')||[]; }
+async function saveSMMReports(d){ LS.set('smm_reports',d); try{ await FB.set('smm_reports',d); }catch(e){ console.warn(e); } }
+
+// SMM team members (configurable)
+const SMM_TEAM = ['SMM1','SMM2']; // update with actual codes
+const SMM_NAMES = {SMM1:'SMM Person 1', SMM2:'SMM Person 2'};
+
+async function renderSMMReports(reports, posts){
+  const members = await getMembers();
+  // Get all members who have submitted SMM reports
+  const reporters = [...new Set(reports.map(r=>r.submittedBy))];
+
+  const tabs2 = reporters.length > 0
+    ? reporters.map(code=>{
+        const m = members.find(x=>x.code===code);
+        return '<button class="btn btn-sm" style="background:var(--surface);" data-r="'+code+'" onclick="filterSMMReports(this.dataset.r)">'+(m?m.name:code)+'</button>';
+      }).join('')
+    : '';
+
+  const myReports = currentUser.role === 'founder'
+    ? reports
+    : reports.filter(r=>r.submittedBy===currentUser.code);
+
+  const sorted = [...myReports].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+
+  const stats = {
+    totalImpressions: myReports.reduce((s,r)=>s+(r.impressions||0),0),
+    totalEngagements: myReports.reduce((s,r)=>s+(r.engagements||0),0),
+    totalClicks: myReports.reduce((s,r)=>s+(r.clicks||0),0),
+    totalPosts: myReports.reduce((s,r)=>s+(r.postsPublished||0),0),
+  };
+
+  return '<button class="btn btn-primary btn-sm" style="margin-bottom:12px;" onclick="openSMMReportForm()">+ Submit Report</button>'
+    +(currentUser.role==='founder'&&tabs2 ? '<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;" id="smm_reporter_tabs">'+tabs2+'<button class="btn btn-sm" style="background:var(--primary);color:#fff;" onclick="filterSMMReports(\'all\')">All</button></div>' : '')
+    +'<div class="stats-row">'
+    +'<div class="stat"><div class="stat-label">Impressions</div><div class="stat-value blue">'+stats.totalImpressions.toLocaleString()+'</div></div>'
+    +'<div class="stat"><div class="stat-label">Engagements</div><div class="stat-value green">'+stats.totalEngagements.toLocaleString()+'</div></div>'
+    +'<div class="stat"><div class="stat-label">Clicks</div><div class="stat-value gold">'+stats.totalClicks.toLocaleString()+'</div></div>'
+    +'<div class="stat"><div class="stat-label">Posts</div><div class="stat-value">'+stats.totalPosts+'</div></div>'
+    +'</div>'
+    +(sorted.length===0
+      ? '<div class="empty"><div>No reports yet</div></div>'
+      : sorted.map(r=>{
+          const m = members.find(x=>x.code===r.submittedBy);
+          return '<div class="card" style="margin-bottom:10px;">'
+            +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">'
+            +'<div><div style="font-weight:700;font-size:14px;">'+r.date+'</div>'
+            +'<div style="font-size:11px;color:var(--muted);">'+(m?m.name:r.submittedBy)+' · '+r.platform+'</div></div>'
+            +'</div>'
+            +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;margin-bottom:8px;">'
+            +'<div style="background:#e0f0ff;padding:6px 8px;border-radius:6px;"><div style="font-size:10px;color:var(--muted);">IMPRESSIONS</div><div style="font-weight:800;color:#1a3a8f;">'+(r.impressions||0).toLocaleString()+'</div></div>'
+            +'<div style="background:#d4f0e0;padding:6px 8px;border-radius:6px;"><div style="font-size:10px;color:var(--muted);">ENGAGEMENTS</div><div style="font-weight:800;color:#1a6b3c;">'+(r.engagements||0).toLocaleString()+'</div></div>'
+            +'<div style="background:#fff8e0;padding:6px 8px;border-radius:6px;"><div style="font-size:10px;color:var(--muted);">LINK CLICKS</div><div style="font-weight:800;color:#92600a;">'+(r.clicks||0).toLocaleString()+'</div></div>'
+            +'<div style="background:#f8fafc;padding:6px 8px;border-radius:6px;"><div style="font-size:10px;color:var(--muted);">POSTS PUBLISHED</div><div style="font-weight:800;">'+(r.postsPublished||0)+'</div></div>'
+            +'</div>'
+            +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px;margin-bottom:8px;">'
+            +'<div><span style="color:var(--muted);">Followers gained:</span> <b>'+(r.followersGained||0)+'</b></div>'
+            +'<div><span style="color:var(--muted);">Shares:</span> <b>'+(r.shares||0)+'</b></div>'
+            +'<div><span style="color:var(--muted);">Comments:</span> <b>'+(r.comments||0)+'</b></div>'
+            +'<div><span style="color:var(--muted);">Saves:</span> <b>'+(r.saves||0)+'</b></div>'
+            +'</div>'
+            +(r.topContent ? '<div style="font-size:12px;margin-bottom:4px;"><b>Top content:</b> '+r.topContent+'</div>' : '')
+            +(r.notes ? '<div style="font-size:11px;color:var(--muted);">'+r.notes+'</div>' : '')
+            +'<button class="btn btn-sm" style="margin-top:6px;background:#fee2e2;color:#b91c1c;border:none;font-size:11px;" data-action="deleteSMMReport" data-oid="'+r.id+'">🗑 Delete</button>'
+            +'</div>';
+        }).join(''));
+}
+
+let _smmReporterFilter = 'all';
+async function filterSMMReports(code){
+  _smmReporterFilter = code;
+  renderTab('smm');
+}
+
+function openSMMReportForm(){
+  openSheet(
+    '<div class="sheet-title">📊 SMM Daily Report<button class="btn btn-gray btn-sm" onclick="closeSheet()">✕</button></div>'
+    +'<div class="fr"><div class="fg"><label class="fl">Date</label><input class="fi" type="date" id="smr_date" value="'+today()+'"></div>'
+    +'<div class="fg"><label class="fl">Platform</label><select class="fsl" id="smr_platform"><option>All Platforms</option><option>Instagram</option><option>Facebook</option><option>WhatsApp</option><option>Twitter/X</option><option>TikTok</option></select></div></div>'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;">'
+    +'<div><label style="font-size:11px;font-weight:700;">Impressions</label><input class="fi" type="number" id="smr_imp" placeholder="0" min="0"></div>'
+    +'<div><label style="font-size:11px;font-weight:700;">Engagements</label><input class="fi" type="number" id="smr_eng" placeholder="0" min="0"></div>'
+    +'<div><label style="font-size:11px;font-weight:700;">Link Clicks</label><input class="fi" type="number" id="smr_clicks" placeholder="0" min="0"></div>'
+    +'<div><label style="font-size:11px;font-weight:700;">Posts Published</label><input class="fi" type="number" id="smr_posts" placeholder="0" min="0"></div>'
+    +'<div><label style="font-size:11px;font-weight:700;">Followers Gained</label><input class="fi" type="number" id="smr_followers" placeholder="0" min="0"></div>'
+    +'<div><label style="font-size:11px;font-weight:700;">Shares</label><input class="fi" type="number" id="smr_shares" placeholder="0" min="0"></div>'
+    +'<div><label style="font-size:11px;font-weight:700;">Comments</label><input class="fi" type="number" id="smr_comments" placeholder="0" min="0"></div>'
+    +'<div><label style="font-size:11px;font-weight:700;">Saves</label><input class="fi" type="number" id="smr_saves" placeholder="0" min="0"></div>'
+    +'</div>'
+    +'<div class="fg"><label class="fl">Top Performing Content</label><input class="fi" id="smr_top" placeholder="Which post performed best?"></div>'
+    +'<div class="fg"><label class="fl">Notes / Observations</label><textarea class="fi" id="smr_notes" style="min-height:80px;" placeholder="What worked? What did not?"></textarea></div>'
+    +'<button class="btn btn-primary btn-full" onclick="submitSMMReport()">✓ Submit Report</button>'
+  );
+}
+
+async function submitSMMReport(){
+  const date = document.getElementById('smr_date').value;
+  if(!date){ alert('Select a date.'); return; }
+  const reports = await getSMMReports();
+  reports.push({
+    id: 'SR_'+Date.now(),
+    date, submittedBy: currentUser.code,
+    platform: document.getElementById('smr_platform').value,
+    impressions: +document.getElementById('smr_imp').value||0,
+    engagements: +document.getElementById('smr_eng').value||0,
+    clicks: +document.getElementById('smr_clicks').value||0,
+    postsPublished: +document.getElementById('smr_posts').value||0,
+    followersGained: +document.getElementById('smr_followers').value||0,
+    shares: +document.getElementById('smr_shares').value||0,
+    comments: +document.getElementById('smr_comments').value||0,
+    saves: +document.getElementById('smr_saves').value||0,
+    topContent: document.getElementById('smr_top').value.trim(),
+    notes: document.getElementById('smr_notes').value.trim()
+  });
+  await saveSMMReports(reports);
+  closeSheet();
+  renderTab('smm');
+  alert('Report submitted!');
+}
+
+async function deleteSMMReport(id){
+  if(!confirm('Delete this report?')) return;
+  const reports = await getSMMReports();
+  await saveSMMReports(reports.filter(r=>r.id!==id));
+  renderTab('smm');
+}
+
 async function renderBuilderDash(){
   const [members,orders]=await Promise.all([getMembers(),getOrders()]);
   const me=currentUser;
@@ -3067,10 +3358,9 @@ async function renderMemberDash(){
       {num:teamSigs,lbl:'PFC Sign-ups',cls:'green'},
       {num:myFines.length,lbl:'Fines',cls:'orange'},
       {num:(()=>{
-        // Count only CCs under this PFC's tree
-        const myPMcodes=downlines.map(d=>d.code);
-        const myCCs=members.filter(x=>x.role==='cc'&&myPMcodes.includes(x.uplineCode));
-        return myCCs.length;
+        // Count only CCs directly under PMs in this PFC's tree
+        const myPMcodes = downlines.filter(d=>d.role==='pm').map(d=>d.code);
+        return members.filter(x=>x.role==='cc' && myPMcodes.includes(x.uplineCode)).length;
       })(),lbl:'My CCs',cls:'purple'},
     ],
   };
@@ -3555,6 +3845,63 @@ async function renderMonthlyHistory(){
 async function getFines(){try{const f=await FB.get('fines');if(f){LS.set('fines',f);return f;}}catch{}return LS.get('fines')||[];}
 async function saveFines(f){LS.set('fines',f);await FB.set('fines',f);}
 
+// ═══════════════════════════════════════════════════════════
+// REPORT DEADLINE REMINDER SYSTEM
+// ═══════════════════════════════════════════════════════════
+const REPORT_DEADLINES = {
+  ambassador: {hour:19, fine:500, label:'7PM'},  // 7PM
+  cc:         {hour:20, fine:1000, label:'8PM'}, // 8PM
+  pm:         {hour:21, fine:2000, label:'9PM'}, // 9PM
+  pfc:        {hour:22, fine:3000, label:'10PM'} // 10PM
+};
+
+async function checkReportDeadlines(){
+  if(!currentUser || currentUser.role==='founder') return;
+  const role = currentUser.role;
+  const deadline = REPORT_DEADLINES[role];
+  if(!deadline) return;
+
+  const now = new Date();
+  const hour = now.getHours();
+  const today_str = today();
+  const lastReminderKey = 'lastReminder_'+currentUser.code+'_'+today_str;
+  const lastReminder = LS.get(lastReminderKey)||0;
+
+  // Send reminder 1 hour before deadline
+  const reminderHour = deadline.hour - 1;
+  if(hour === reminderHour && lastReminder !== reminderHour){
+    LS.set(lastReminderKey, reminderHour);
+    // Show in-app notification
+    const existing = document.getElementById('reportReminder');
+    if(!existing){
+      const banner = document.createElement('div');
+      banner.id = 'reportReminder';
+      banner.style.cssText = 'position:fixed;bottom:70px;left:12px;right:12px;background:#0d1b2a;color:#fff;border-radius:12px;padding:12px 16px;z-index:9999;border-left:4px solid #e8a020;box-shadow:0 4px 20px rgba(0,0,0,.4);';
+      banner.innerHTML = '<div style="font-weight:800;font-size:13px;margin-bottom:4px;">⏰ Report Reminder</div>'
+        +'<div style="font-size:12px;opacity:.85;">Your daily report is due at '+deadline.label+'! Submit it now to avoid a ₦'+deadline.fine.toLocaleString()+' fine.</div>'
+        +'<div style="display:flex;gap:8px;margin-top:8px;">'
+        +'<button data-tab="reports" onclick="renderTab(this.dataset.tab);document.getElementById(\'reportReminder\').remove();" style="flex:1;background:#e8a020;color:#0d1b2a;border:none;border-radius:8px;padding:6px;font-weight:700;font-size:12px;cursor:pointer;">Submit Report Now</button>'
+        +'<button onclick="document.getElementById(\'reportReminder\').remove();" style="background:rgba(255,255,255,.15);border:none;border-radius:8px;padding:6px 10px;color:#fff;cursor:pointer;font-size:12px;">Later</button>'
+        +'</div>';
+      document.body.appendChild(banner);
+      // Auto remove after 30 seconds
+      setTimeout(()=>{ const b=document.getElementById('reportReminder'); if(b) b.remove(); }, 30000);
+    }
+
+    // Also send email reminder
+    if(currentUser.email){
+      sendEmail(currentUser.email, currentUser.name,
+        '⏰ Report Due in 1 Hour — Submit Now!',
+        '<p>Hi '+currentUser.name+',</p>'
+        +'<p>Your daily activity report is due at <b>'+deadline.label+'</b> — that is 1 hour from now.</p>'
+        +'<p>Missing your report will result in an automatic fine of <b>₦'+deadline.fine.toLocaleString()+'</b>.</p>'
+        +'<p><a href="https://rehobusiness.com.ng" style="background:#1a3a8f;color:#fff;padding:10px 20px;border-radius:8px;font-weight:700;text-decoration:none;display:inline-block;">Submit Report Now →</a></p>'
+        +'<p>RehoVTU Team</p>'
+      );
+    }
+  }
+}
+
 async function checkAndApplyFines(){
   const now=new Date();const hour=now.getHours();
   const todayStr=now.toISOString().split('T')[0];
@@ -3568,9 +3915,76 @@ async function checkAndApplyFines(){
     if(reports.find(r=>r.memberCode===m.code&&r.date===todayStr&&r.type==='daily'))continue;
     fines.push({id:'F_'+Date.now()+Math.random(),memberCode:m.code,date:todayStr,amount:rule.fine,reason:'Missed daily report (deadline: '+rule.label+')',auto:true});
     changed=true;
-    sendEmail(m.email,m.name,'⚠️ RehoVTU Fine — Missed Report','<p>Hi '+m.name+',</p><p>A penalty of <b>₦'+rule.fine.toLocaleString()+'</b> has been recorded for missing your '+rule.label+' report deadline.</p><p>RehoVTU Team</p>');
+
+    // Count consecutive missed reports this month
+    const thisMonth = todayStr.substring(0,7);
+    const monthFines = fines.filter(f=>f.memberCode===m.code&&f.auto&&(f.date||'').startsWith(thisMonth));
+    const consecutive = countConsecutiveMissed(reports, m.code, todayStr);
+    const totalMissed = monthFines.length;
+
+    let emailSubject = '⚠️ RehoVTU Fine — Missed Report';
+    let emailBody = '<p>Hi '+m.name+',</p><p>A penalty of <b>₦'+rule.fine.toLocaleString()+'</b> has been recorded for missing your '+rule.label+' report deadline today ('+todayStr+').</p>';
+
+    // 3 consecutive = CAUTION
+    if(consecutive === 3){
+      emailSubject = '🟡 CAUTION — 3 Consecutive Missed Reports';
+      emailBody += '<p style="background:#fff8e0;padding:10px;border-radius:6px;color:#92600a;"><b>⚠️ CAUTION:</b> You have missed 3 reports in a row. One more missed report will result in a formal WARNING.</p>';
+      // Notify upline
+      notifyUpline(m.code, '⚠️ Caution Issued — '+m.name, m.name+' ('+m.code+') has missed 3 consecutive daily reports. Please follow up immediately.');
+    }
+
+    // 4 consecutive = FORMAL WARNING
+    else if(consecutive === 4){
+      emailSubject = '🟠 FORMAL WARNING — 4 Consecutive Missed Reports';
+      emailBody += '<p style="background:#fee2e2;padding:10px;border-radius:6px;color:#b91c1c;"><b>🚨 FORMAL WARNING:</b> You have missed 4 reports in a row. One more will result in account SUSPENSION.</p>';
+      notifyUpline(m.code, '🚨 Formal Warning — '+m.name, m.name+' ('+m.code+') has missed 4 consecutive daily reports. Account suspension is imminent.');
+    }
+
+    // 5 consecutive = SUSPEND
+    else if(consecutive >= 5){
+      emailSubject = '🔴 ACCOUNT SUSPENDED — Missed Reports';
+      emailBody += '<p style="background:#fee2e2;padding:10px;border-radius:6px;color:#b91c1c;"><b>🔴 YOUR ACCOUNT HAS BEEN SUSPENDED</b> due to '+consecutive+' consecutive missed reports. Contact the Founder immediately to reinstate your account.</p>';
+      // Suspend the member
+      const mIdx = members.findIndex(x=>x.code===m.code);
+      if(mIdx>=0 && !members[mIdx].suspended){
+        members[mIdx].suspended = true;
+        members[mIdx].suspendedDate = todayStr;
+        members[mIdx].suspendedReason = 'Missed '+consecutive+' consecutive daily reports';
+        changed = true;
+      }
+      // Notify upline and founder
+      notifyUpline(m.code, '🔴 SUSPENDED — '+m.name, m.name+' ('+m.code+') has been automatically suspended after '+consecutive+' consecutive missed reports.');
+      const founder = members.find(x=>x.role==='founder');
+      if(founder&&founder.email) sendEmail(founder.email, founder.name,
+        '🔴 Auto-Suspension — '+m.name,
+        '<p>'+m.name+' ('+m.code+') has been automatically suspended after '+consecutive+' consecutive missed daily reports.</p><p>Log in to review and reinstate if appropriate.</p>');
+    }
+
+    // 5 total missed in month = double fine
+    else if(totalMissed >= 5){
+      const extraFine = rule.fine;
+      fines.push({id:'F_'+Date.now()+Math.random()+'x',memberCode:m.code,date:todayStr,amount:extraFine,reason:'5th missed report this month — double fine',auto:true});
+      emailBody += '<p style="background:#fee2e2;padding:10px;border-radius:6px;color:#b91c1c;"><b>Double Fine Applied:</b> This is your 5th missed report this month. Fine doubled to ₦'+(rule.fine*2).toLocaleString()+'.</p>';
+    }
+
+    emailBody += '<p>Submit your reports on time at <a href="https://rehobusiness.com.ng">rehobusiness.com.ng</a>.</p><p>RehoVTU Team</p>';
+    sendEmail(m.email, m.name, emailSubject, emailBody);
   }
-  if(changed)await saveFines(fines);
+  if(changed){ await saveFines(fines); await saveMembers(members); }
+}
+
+function countConsecutiveMissed(reports, memberCode, upToDate){
+  // Count how many consecutive days before upToDate had no report
+  let count = 0;
+  const d = new Date(upToDate);
+  for(let i=0; i<30; i++){
+    d.setDate(d.getDate() - 1);
+    const ds = d.toISOString().split('T')[0];
+    const hasReport = reports.find(r=>r.memberCode===memberCode&&r.date===ds&&r.type==='daily');
+    if(hasReport) break;
+    count++;
+  }
+  return count + 1; // include today
 }
 
 // ═══════════════════════════════════════════════════════════

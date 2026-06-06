@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>RehoVTU — Offer Letter</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1b2a;min-height:100vh;padding:20px;}
+.wrap{max-width:560px;margin:0 auto;}
+.header{text-align:center;padding:30px 0 20px;}
+.logo{font-size:28px;font-weight:900;color:#fff;}
+.logo span{color:#f5b944;}
+.logo-sub{font-size:12px;color:rgba(255,255,255,.5);margin-top:4px;letter-spacing:2px;text-transform:uppercase;}
+.card{background:#fff;border-radius:16px;padding:24px;margin-bottom:16px;}
+.card-title{font-size:18px;font-weight:800;color:#0d1b2a;margin-bottom:4px;}
+.card-sub{font-size:13px;color:#64748b;margin-bottom:20px;}
+.offer-box{background:#f0fdf4;border:2px solid #1a6b3c;border-radius:12px;padding:16px;margin-bottom:20px;}
+.offer-box h3{font-size:14px;font-weight:800;color:#1a6b3c;margin-bottom:12px;}
+.offer-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #d4f0e0;font-size:13px;}
+.offer-row:last-child{border:none;}
+.offer-label{color:#64748b;}
+.offer-val{font-weight:700;color:#0d1b2a;}
+.fg{margin-bottom:14px;}
+label{display:block;font-size:12px;font-weight:700;color:#374151;margin-bottom:5px;}
+input,select,textarea{width:100%;padding:11px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:inherit;outline:none;transition:border .2s;background:#fff;}
+input:focus,select:focus,textarea:focus{border-color:#f5b944;}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.section-title{font-size:12px;font-weight:800;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin:16px 0 10px;padding-bottom:6px;border-bottom:1px solid #e2e8f0;}
+.terms{background:#f8fafc;border-radius:8px;padding:14px;font-size:12px;color:#374151;line-height:1.6;margin-bottom:16px;max-height:200px;overflow-y:auto;}
+.terms p{margin-bottom:8px;}
+.check-row{display:flex;align-items:flex-start;gap:10px;margin-bottom:12px;font-size:13px;color:#374151;}
+.check-row input[type=checkbox]{width:18px;height:18px;flex-shrink:0;margin-top:1px;accent-color:#1a6b3c;}
+.btn{width:100%;padding:14px;background:#f5b944;border:none;border-radius:10px;font-size:16px;font-weight:800;color:#0d1b2a;cursor:pointer;margin-top:4px;}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+.btn:active{opacity:.9;}
+.alert{padding:12px 14px;border-radius:8px;font-size:13px;margin-bottom:12px;}
+.alert-error{background:#fee2e2;color:#b91c1c;}
+.alert-success{background:#d4f0e0;color:#1a6b3c;}
+.hidden{display:none;}
+.success-screen{text-align:center;padding:20px 0;}
+.success-icon{font-size:56px;margin-bottom:16px;}
+.success-title{font-size:22px;font-weight:800;color:#0d1b2a;margin-bottom:8px;}
+.success-sub{font-size:14px;color:#64748b;line-height:1.6;}
+.req{color:#b91c1c;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="header">
+    <div class="logo">Reho<span>VTU</span></div>
+    <div class="logo-sub">Official Offer Letter</div>
+  </div>
+
+  <div class="card" id="formCard">
+    <div class="card-title">Accept Your Offer</div>
+    <div class="card-sub">Fill in your details to confirm acceptance of your RehoVTU role offer.</div>
+
+    <div id="formErr" class="alert alert-error hidden"></div>
+
+    <!-- Offer Summary (populated from URL params) -->
+    <div class="offer-box" id="offerBox">
+      <h3>📋 Your Offer Details</h3>
+      <div class="offer-row"><span class="offer-label">Role</span><span class="offer-val" id="offerRole">—</span></div>
+      <div class="offer-row"><span class="offer-label">Zone / State</span><span class="offer-val" id="offerZone">—</span></div>
+      <div class="offer-row"><span class="offer-label">Upline</span><span class="offer-val" id="offerUpline">—</span></div>
+      <div class="offer-row"><span class="offer-label">Commission</span><span class="offer-val" id="offerComm">₦600 per sign-up</span></div>
+      <div class="offer-row"><span class="offer-label">Start Date</span><span class="offer-val" id="offerStart">Immediate</span></div>
+    </div>
+
+    <!-- Personal Details -->
+    <div class="section-title">Personal Information</div>
+    <div class="fr">
+      <div class="fg"><label>First Name <span class="req">*</span></label><input id="ol_fname" placeholder="First name"></div>
+      <div class="fg"><label>Last Name <span class="req">*</span></label><input id="ol_lname" placeholder="Last name"></div>
+    </div>
+    <div class="fr">
+      <div class="fg"><label>Phone Number <span class="req">*</span></label><input id="ol_phone" type="tel" placeholder="08012345678"></div>
+      <div class="fg"><label>WhatsApp Number</label><input id="ol_whatsapp" type="tel" placeholder="Same as phone?"></div>
+    </div>
+    <div class="fg"><label>Email Address <span class="req">*</span></label><input id="ol_email" type="email" placeholder="your@email.com"></div>
+    <div class="fr">
+      <div class="fg"><label>Date of Birth</label><input id="ol_dob" type="date"></div>
+      <div class="fg"><label>Gender</label><select id="ol_gender"><option value="">Select</option><option>Male</option><option>Female</option></select></div>
+    </div>
+
+    <!-- Address -->
+    <div class="section-title">Address & Location</div>
+    <div class="fg"><label>Home Address</label><input id="ol_address" placeholder="Street address"></div>
+    <div class="fr">
+      <div class="fg"><label>City / LGA</label><input id="ol_city" placeholder="City or LGA"></div>
+      <div class="fg"><label>State <span class="req">*</span></label><select id="ol_state">
+        <option value="">Select state</option>
+        <option>Abia</option><option>Adamawa</option><option>Akwa Ibom</option><option>Anambra</option>
+        <option>Bauchi</option><option>Bayelsa</option><option>Benue</option><option>Borno</option>
+        <option>Cross River</option><option>Delta</option><option>Ebonyi</option><option>Edo</option>
+        <option>Ekiti</option><option>Enugu</option><option>FCT - Abuja</option><option>Gombe</option>
+        <option>Imo</option><option>Jigawa</option><option>Kaduna</option><option>Kano</option>
+        <option>Katsina</option><option>Kebbi</option><option>Kogi</option><option>Kwara</option>
+        <option>Lagos</option><option>Nasarawa</option><option>Niger</option><option>Ogun</option>
+        <option>Ondo</option><option>Osun</option><option>Oyo</option><option>Plateau</option>
+        <option>Rivers</option><option>Sokoto</option><option>Taraba</option><option>Yobe</option>
+        <option>Zamfara</option>
+      </select></div>
+    </div>
+
+    <!-- Education & Institution -->
+    <div class="section-title">Education & Institution</div>
+    <div class="fg"><label>School / Institution</label><input id="ol_school" placeholder="University, polytechnic, etc."></div>
+    <div class="fr">
+      <div class="fg"><label>Department / Course</label><input id="ol_dept" placeholder="Your course of study"></div>
+      <div class="fg"><label>Level / Year</label><select id="ol_level"><option value="">Select</option><option>100 Level</option><option>200 Level</option><option>300 Level</option><option>400 Level</option><option>500 Level</option><option>Graduate</option><option>Not in school</option></select></div>
+    </div>
+    <div class="fg"><label>Campus / Location</label><input id="ol_campus" placeholder="Which campus?"></div>
+
+    <!-- Bank Details -->
+    <div class="section-title">Bank Details (for commission payment)</div>
+    <div class="fg"><label>Bank Name <span class="req">*</span></label><input id="ol_bank" placeholder="e.g. GTBank, Access, Opay"></div>
+    <div class="fr">
+      <div class="fg"><label>Account Number <span class="req">*</span></label><input id="ol_accnum" placeholder="10-digit number"></div>
+      <div class="fg"><label>Account Name <span class="req">*</span></label><input id="ol_accname" placeholder="Name on account"></div>
+    </div>
+
+    <!-- Social Media -->
+    <div class="section-title">Social Media Handles (optional)</div>
+    <div class="fr">
+      <div class="fg"><label>Instagram</label><input id="ol_ig" placeholder="@username"></div>
+      <div class="fg"><label>Facebook</label><input id="ol_fb" placeholder="Profile name"></div>
+    </div>
+
+    <!-- Emergency Contact -->
+    <div class="section-title">Emergency Contact</div>
+    <div class="fr">
+      <div class="fg"><label>Name</label><input id="ol_ecname" placeholder="Full name"></div>
+      <div class="fg"><label>Relationship</label><input id="ol_ecrel" placeholder="e.g. Parent, Sibling"></div>
+    </div>
+    <div class="fg"><label>Phone</label><input id="ol_ecphone" type="tel" placeholder="Emergency phone"></div>
+
+    <!-- Terms -->
+    <div class="section-title">Terms & Conditions</div>
+    <div class="terms">
+      <p><strong>1. Role & Responsibilities:</strong> By accepting this offer, you agree to fulfill the duties of your assigned role in the RehoVTU network.</p>
+      <p><strong>2. Commission:</strong> You will earn ₦600 per verified customer sign-up through your referral link. Commissions are paid monthly on the 25th.</p>
+      <p><strong>3. Daily Reports:</strong> You are required to submit daily activity reports to your upline. Failure to submit reports may result in fines as stated in the RehoVTU policy.</p>
+      <p><strong>4. Code of Conduct:</strong> You must not engage in any activity that brings the RehoVTU brand into disrepute. This includes spreading false information, fraud, or misconduct.</p>
+      <p><strong>5. No Guarantee:</strong> RehoVTU does not guarantee a fixed income. Earnings depend on your performance and effort.</p>
+      <p><strong>6. Data Privacy:</strong> Your personal information will be stored securely and used only for RehoVTU business operations.</p>
+      <p><strong>7. Termination:</strong> RehoVTU reserves the right to terminate your position for misconduct, inactivity, or breach of these terms.</p>
+    </div>
+
+    <div class="check-row">
+      <input type="checkbox" id="ol_terms">
+      <label for="ol_terms" style="font-weight:400;">I have read and agree to the RehoVTU Terms & Conditions above <span class="req">*</span></label>
+    </div>
+    <div class="check-row">
+      <input type="checkbox" id="ol_confirm">
+      <label for="ol_confirm" style="font-weight:400;">I confirm that all information provided is accurate and I accept this offer <span class="req">*</span></label>
+    </div>
+
+    <div class="fg"><label>Digital Signature (type your full name) <span class="req">*</span></label>
+      <input id="ol_sig" placeholder="Type your full name as signature" style="font-style:italic;font-size:16px;">
+    </div>
+
+    <button class="btn" id="submitBtn" onclick="submitOfferLetter()">✅ Accept & Submit Offer Letter</button>
+  </div>
+
+  <!-- Success Screen -->
+  <div class="card hidden" id="successCard">
+    <div class="success-screen">
+      <div class="success-icon">🎉</div>
+      <div class="success-title">Offer Accepted!</div>
+      <div class="success-sub">
+        Welcome to the RehoVTU team!<br><br>
+        Your offer letter has been submitted successfully.<br>
+        The Founder will review and activate your account within 24 hours.<br><br>
+        You will receive a confirmation email shortly.<br><br>
+        <strong>Next step:</strong> Log in to your dashboard at<br>
+        <a href="https://rehobusiness.com.ng" style="color:#1a6b3c;font-weight:700;">rehobusiness.com.ng</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const FB_URL = 'https://rehovtu-default-rtdb.firebaseio.com';
+
+async function fbGet(path){
+  const r = await fetch(FB_URL+'/'+path+'.json');
+  return r.json();
+}
+async function fbPush(path, data){
+  const r = await fetch(FB_URL+'/'+path+'.json',{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(data)
+  });
+  return r.json();
+}
+
+// Populate offer details from URL params
+window.onload = function(){
+  const p = new URLSearchParams(location.search);
+  if(p.get('role')) document.getElementById('offerRole').textContent = p.get('role');
+  if(p.get('zone')) document.getElementById('offerZone').textContent = p.get('zone');
+  if(p.get('upline')) document.getElementById('offerUpline').textContent = p.get('upline');
+  if(p.get('comm')) document.getElementById('offerComm').textContent = p.get('comm');
+  if(p.get('start')) document.getElementById('offerStart').textContent = p.get('start');
+};
+
+function val(id){ return (document.getElementById(id)||{}).value||''; }
+
+async function submitOfferLetter(){
+  const btn = document.getElementById('submitBtn');
+  const errEl = document.getElementById('formErr');
+  errEl.className = 'alert alert-error hidden';
+
+  // Validate required fields
+  const fname = val('ol_fname').trim();
+  const lname = val('ol_lname').trim();
+  const phone = val('ol_phone').trim();
+  const email = val('ol_email').trim();
+  const state = val('ol_state');
+  const bank = val('ol_bank').trim();
+  const accnum = val('ol_accnum').trim();
+  const accname = val('ol_accname').trim();
+  const sig = val('ol_sig').trim();
+  const terms = document.getElementById('ol_terms').checked;
+  const confirm = document.getElementById('ol_confirm').checked;
+
+  if(!fname||!lname){ errEl.textContent='Enter your full name.'; errEl.className='alert alert-error'; return; }
+  if(!phone){ errEl.textContent='Enter your phone number.'; errEl.className='alert alert-error'; return; }
+  if(!email||!email.includes('@')){ errEl.textContent='Enter a valid email address.'; errEl.className='alert alert-error'; return; }
+  if(!state){ errEl.textContent='Select your state.'; errEl.className='alert alert-error'; return; }
+  if(!bank||!accnum||!accname){ errEl.textContent='Fill in all bank details.'; errEl.className='alert alert-error'; return; }
+  if(!sig){ errEl.textContent='Add your digital signature.'; errEl.className='alert alert-error'; return; }
+  if(!terms||!confirm){ errEl.textContent='You must accept the terms and confirm.'; errEl.className='alert alert-error'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+
+  const p = new URLSearchParams(location.search);
+  const submission = {
+    id: 'OL_'+Date.now(),
+    fname, lname, fullName: fname+' '+lname,
+    phone, whatsapp: val('ol_whatsapp')||phone,
+    email, dob: val('ol_dob'), gender: val('ol_gender'),
+    address: val('ol_address'), city: val('ol_city'), state,
+    school: val('ol_school'), dept: val('ol_dept'),
+    level: val('ol_level'), campus: val('ol_campus'),
+    bank, accNum: accnum, accName: accname,
+    instagram: val('ol_ig'), facebook: val('ol_fb'),
+    ecName: val('ol_ecname'), ecRel: val('ol_ecrel'), ecPhone: val('ol_ecphone'),
+    signature: sig,
+    offeredRole: p.get('role')||'Ambassador',
+    offeredZone: p.get('zone')||'',
+    uplineCode: p.get('upcode')||'',
+    submittedAt: new Date().toISOString(),
+    status: 'pending'
+  };
+
+  try{
+    await fbPush('offer_letters', submission);
+    document.getElementById('formCard').classList.add('hidden');
+    document.getElementById('successCard').classList.remove('hidden');
+    window.scrollTo(0,0);
+  } catch(e){
+    btn.disabled = false;
+    btn.textContent = '✅ Accept & Submit Offer Letter';
+    errEl.textContent = 'Submission failed. Check your connection and try again.';
+    errEl.className = 'alert alert-error';
+  }
+}
+</script>
+</body>
+</html>
