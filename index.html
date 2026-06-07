@@ -1315,7 +1315,7 @@ async function openMemberDetail(code){
       <button class="btn btn-gold btn-sm" onclick="openEditMember('${m.code}')">✏️ Edit</button>
       <button class="btn btn-gray btn-sm" onclick="openPromoteDemote('${m.code}')">⬆⬇ Promote/Demote</button>
       <button class="btn btn-gray btn-sm" style="background:#e0f0ff;color:#1a3a8f;" onclick="viewMemberActivity('${m.code}')">📋 Activity</button>
-      ${m.suspended ? '<button class="btn btn-sm" style="background:#b91c1c;color:#fff;font-weight:700;" data-action="reinstateMember" data-oid="'+m.code+'">🔓 Reinstate Account</button>' : ''}
+      \${m.suspended?'<button class="btn btn-sm" style="background:#b91c1c;color:#fff;font-weight:700;margin-top:4px;" data-action="reinstateMember" data-oid="'+m.code+'">🔓 Reinstate Account</button>':''}
       ${!m.verified ? '<button class="btn btn-sm" style="background:#d4f0e0;color:#1a6b3c;" data-action="verifyMember" data-oid="'+m.code+'">✅ Verify</button>' : '<span style="font-size:10px;background:#d4f0e0;color:#1a6b3c;padding:2px 8px;border-radius:8px;font-weight:700;">✓ Verified</span>'}
       <button class="btn btn-gray btn-sm" style="background:#d4f0e0;color:#1a6b3c;" onclick="openDirectEmail('${m.code}')">📧 Email</button>
       <button class="btn btn-gray btn-sm" onclick="openTransfer('${m.code}')">🔀 Transfer</button>
@@ -5649,16 +5649,23 @@ async function sendBulkEmail(){
 
   if(!confirm('Send to '+recipients.length+' recipients? This cannot be undone.')){ return; }
 
+  // Get image and attachments ONCE before the loop
+  const bulkImgHTML = await getEmailImageHTML('be_img').catch(()=>'');
+  const bulkAttachments = await getAttachmentsBase64('be_attach_list').catch(()=>[]);
+
   // Send emails one by one with personalisation
   let sent=0, failed=0;
   for(const r of recipients){
     const personalBody = body.replace(/{name}/g, r.name.split(' ')[0]);
+    const imgHTML = bulkImgHTML;
+    const attachments = bulkAttachments;
     const htmlBody = '<div style="font-family:sans-serif;max-width:520px;margin:0 auto;">'
       +'<div style="background:#0d1b2a;padding:16px 24px;border-radius:12px 12px 0 0;text-align:center;">'
       +'<span style="font-size:22px;font-weight:900;color:#fff;">Reho<span style="color:#e8a020;">VTU</span></span>'
       +'</div>'
       +'<div style="background:#fff;padding:22px 24px;border-radius:0 0 12px 12px;border:1px solid #e2e8f0;">'
       +'<p style="color:#334155;font-size:14px;white-space:pre-wrap;">'+personalBody+'</p>'
+      +imgHTML
       +'<hr style="border:none;border-top:1px solid #e2e8f0;margin:16px 0;">'
       +'<p style="font-size:11px;color:#94a3b8;">RehoVTU Team · rehovtu@gmail.com · 09037066499</p>'
       +'</div></div>';
