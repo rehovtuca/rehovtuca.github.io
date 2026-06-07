@@ -578,7 +578,9 @@ async function sendEmail(to,toName,subject,html,attachments){
     });
     if(!res.ok){
       const err=await res.json().catch(()=>({}));
-      alert('Email failed: '+(err.message||'Status '+res.status)+'. Try again.');
+      const msg = err.message||err.code||'Status '+res.status;
+      console.error('Brevo error:', JSON.stringify(err));
+      alert('Email failed: '+msg+'\n\nIf this says IP not recognised, go to app.brevo.com/security/authorised_ips and ensure IP restriction is OFF.');
       return false;
     }
     return true;
@@ -1111,12 +1113,11 @@ function buildNav(){
   const current = tabs.find(t=>t.id===currentTab);
   el('navBar').innerHTML =
     '<div style="display:flex;align-items:center;gap:8px;padding:0 4px;">'
-    +'<button id="hamburgerBtn" onclick="toggleNavMenu()" style="background:none;border:none;cursor:pointer;padding:6px 8px;border-radius:8px;display:flex;flex-direction:column;gap:4px;">'
-    +'<span style="display:block;width:20px;height:2px;background:#fff;border-radius:2px;"></span>'
-    +'<span style="display:block;width:20px;height:2px;background:#fff;border-radius:2px;"></span>'
-    +'<span style="display:block;width:20px;height:2px;background:#fff;border-radius:2px;"></span>'
+    +'<button id="hamburgerBtn" onclick="toggleNavMenu()" style="background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);cursor:pointer;padding:8px 12px;border-radius:10px;display:flex;align-items:center;gap:8px;color:#fff;">'
+    +'<div style="display:flex;flex-direction:column;gap:4px;"><span style="display:block;width:18px;height:2.5px;background:#fff;border-radius:2px;"></span><span style="display:block;width:18px;height:2.5px;background:#fff;border-radius:2px;"></span><span style="display:block;width:18px;height:2.5px;background:#fff;border-radius:2px;"></span></div>'
+    +'<span style="font-size:13px;font-weight:700;">'+(current?current.label:'Menu')+'</span>'
+    +'<span style="font-size:10px;opacity:.7;">▼</span>'
     +'</button>'
-    +'<span style="color:#fff;font-size:13px;font-weight:700;opacity:.9;">'+(current?current.label:'Menu')+'</span>'
     +'</div>'
     +'<div id="navDropdown" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:999;" onclick="closeNavMenu(event)">'
     +'<div style="position:absolute;top:0;left:0;width:240px;height:100%;background:#0d1b2a;box-shadow:4px 0 20px rgba(0,0,0,.5);overflow-y:auto;padding:16px 0;">'
@@ -1314,7 +1315,7 @@ async function openMemberDetail(code){
       <button class="btn btn-gold btn-sm" onclick="openEditMember('${m.code}')">✏️ Edit</button>
       <button class="btn btn-gray btn-sm" onclick="openPromoteDemote('${m.code}')">⬆⬇ Promote/Demote</button>
       <button class="btn btn-gray btn-sm" style="background:#e0f0ff;color:#1a3a8f;" onclick="viewMemberActivity('${m.code}')">📋 Activity</button>
-      ${m.suspended ? '<button class="btn btn-sm" style="background:#fee2e2;color:#b91c1c;" data-action="reinstateMember" data-oid="'+m.code+'">🔓 Reinstate</button>' : ''}
+      ${m.suspended ? '<button class="btn btn-sm" style="background:#b91c1c;color:#fff;font-weight:700;" data-action="reinstateMember" data-oid="'+m.code+'">🔓 Reinstate Account</button>' : ''}
       ${!m.verified ? '<button class="btn btn-sm" style="background:#d4f0e0;color:#1a6b3c;" data-action="verifyMember" data-oid="'+m.code+'">✅ Verify</button>' : '<span style="font-size:10px;background:#d4f0e0;color:#1a6b3c;padding:2px 8px;border-radius:8px;font-weight:700;">✓ Verified</span>'}
       <button class="btn btn-gray btn-sm" style="background:#d4f0e0;color:#1a6b3c;" onclick="openDirectEmail('${m.code}')">📧 Email</button>
       <button class="btn btn-gray btn-sm" onclick="openTransfer('${m.code}')">🔀 Transfer</button>
@@ -5670,8 +5671,27 @@ async function sendBulkEmail(){
     +(failed===0?'✅ All '+sent+' emails sent successfully!':'✅ '+sent+' sent, ❌ '+failed+' failed')+'</div>';
 }
 
+function toggleAutoFines(){
+  const current = LS.get('autoFinesEnabled');
+  if(current === 'off'){
+    LS.set('autoFinesEnabled','on');
+    alert('✅ Auto-fines RESUMED. Members will be fined for missing reports.');
+  } else {
+    LS.set('autoFinesEnabled','off');
+    alert('⏸ Auto-fines PAUSED. No automatic fines will be applied until you resume.');
+  }
+  renderTab('admin');
+}
+
 function renderAdminTools(){
+  const finesEnabled = LS.get('autoFinesEnabled') !== 'off';
   const html = '<div class="sec-title">Admin Tools</div>' +
+    '<div class="card" style="border-left:4px solid '+(finesEnabled?'#1a6b3c':'#b91c1c')+';margin-bottom:10px;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;">' +
+      '<div><div style="font-weight:700;font-size:13px;">⚙️ Auto-Fines</div>' +
+      '<div style="font-size:11px;color:var(--muted);">Currently: <b style="color:'+(finesEnabled?'#1a6b3c':'#b91c1c')+'">'+(finesEnabled?'ACTIVE':'PAUSED')+'</b></div></div>' +
+      '<button class="btn btn-sm" style="background:'+(finesEnabled?'#fee2e2;color:#b91c1c':'#d4f0e0;color:#1a6b3c')+';border:none;" onclick="toggleAutoFines()">'+(finesEnabled?'⏸ Pause Fines':'▶ Resume Fines')+'</button>' +
+      '</div></div>' +
 
     '<div class="card" style="border-left:4px solid #1a3a8f;margin-bottom:10px;">' +
       '<div style="font-weight:700;margin-bottom:4px;font-size:14px;">📧 Bulk Email</div>' +
