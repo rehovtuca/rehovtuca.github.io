@@ -859,17 +859,22 @@ async function doRegister(){
   const uplineCode=el('rg_upline').value;
   const pass=el('rg_pass').value;
   el('regErr').classList.add('hidden');el('regOk').classList.add('hidden');
-  if(!name||!email||!pass||!uplineCode){
-    el('regErr').textContent=!uplineCode?'Please select your upline from the list.':'All fields required.';
+  if(!name||!email||!pass||!uplineCode||!phone){
+    el('regErr').textContent=!uplineCode?'Please select your upline from the list.':!phone?'Phone number is required.':'All fields required.';
     el('regErr').classList.remove('hidden');return;}
   // Always fetch fresh from Firebase before writing
   const members=await getMembers();
+  // Normalize phone for comparison
+  const normPhone = phone.replace(/\s/g,'').replace(/^0/,'234');
   if(members.find(m=>m.email.toLowerCase()===email)){
     el('regErr').textContent='This email is already registered. Please log in instead.';el('regErr').classList.remove('hidden');return;}
-  if(phone&&members.find(m=>m.phone&&m.phone.replace(/\s/g,'')===phone.replace(/\s/g,''))){
+  if(members.find(m=>m.phone&&m.phone.replace(/\s/g,'').replace(/^0/,'234')===normPhone)){
     el('regErr').textContent='This phone number is already registered. Please log in instead.';el('regErr').classList.remove('hidden');return;}
-  if(name&&members.find(m=>m.name.toLowerCase().trim()===name.toLowerCase().trim())){
-    if(!confirm('A member with the name "'+name+'" already exists. Are you sure you want to continue?')){return;}
+  // Hard block on duplicate name
+  const dupName = members.find(m=>m.name.toLowerCase().trim()===name.toLowerCase().trim());
+  if(dupName){
+    el('regErr').textContent='A member named "'+name+'" is already registered ('+dupName.code+'). If this is you, please log in instead. If this is a different person, contact the Founder.';
+    el('regErr').classList.remove('hidden');return;
   }
   const upline=members.find(m=>m.code===uplineCode);
   const code=nextCode(members,role);
@@ -1255,7 +1260,17 @@ async function renderMembers(){
     <div class="sec-title">Members (${team.length})<button class="btn btn-success btn-sm" onclick="openAddMember()">+ Add</button></div>
     <div class="srch-wrap"><span class="srch-icon">🔍</span>
       <input class="fi" placeholder="Search name, code, email…" value="${mSearch}" oninput="mSearch=this.value;renderTab('members')"></div>
-    \${suspendedCount > 0 ? '<div style="background:#fee2e2;border-radius:10px;padding:12px 14px;margin-bottom:10px;">'+'<div style="font-weight:700;font-size:13px;color:#b91c1c;margin-bottom:8px;">🔴 '+suspendedCount+' Suspended Member'+(suspendedCount!==1?'s':'')+'</div>'+'<div style="display:flex;flex-wrap:wrap;gap:6px;">'+'<button class="btn btn-sm" style="background:#b91c1c;color:#fff;border:none;" onclick="mSuspendedOnly=!mSuspendedOnly;renderTab(\'members\')">'+( mSuspendedOnly?'Show All':'View Suspended')+'</button>'+'<button class="btn btn-sm" style="background:#b91c1c;color:#fff;border:none;" onclick="bulkReinstate(\'all\')">🔓 Reinstate All</button>'+'<button class="btn btn-sm" style="background:#92600a;color:#fff;border:none;" onclick="bulkReinstate(\'pm\')">Reinstate All PMs</button>'+'<button class="btn btn-sm" style="background:#1a6b3c;color:#fff;border:none;" onclick="bulkReinstate(\'cc\')">Reinstate All CCs</button>'+'<button class="btn btn-sm" style="background:#5c3d0a;color:#fff;border:none;" onclick="bulkReinstate(\'ambassador\')">Reinstate All Ambassadors</button>'+'</div></div>' : ''}
+    +(suspendedCount > 0
+      ? '<div style="background:#fee2e2;border-radius:10px;padding:12px 14px;margin-bottom:10px;">'
+        +'<div style="font-weight:700;font-size:13px;color:#b91c1c;margin-bottom:8px;">🔴 '+suspendedCount+' Suspended Member'+(suspendedCount!==1?'s':'')+'</div>'
+        +'<div style="display:flex;flex-wrap:wrap;gap:6px;">'
+        +'<button class="btn btn-sm" style="background:#b91c1c;color:#fff;border:none;" data-suspended="1" onclick="mSuspendedOnly=!mSuspendedOnly;renderTab(this.dataset.tab)" data-tab="members">'+(mSuspendedOnly?'Show All':'View Suspended')+'</button>'
+        +'<button class="btn btn-sm" style="background:#b91c1c;color:#fff;border:none;" onclick="bulkReinstate(\'all\')">🔓 Reinstate All</button>'
+        +'<button class="btn btn-sm" style="background:#92600a;color:#fff;border:none;" onclick="bulkReinstate(\'pm\')">PMs</button>'
+        +'<button class="btn btn-sm" style="background:#1a6b3c;color:#fff;border:none;" onclick="bulkReinstate(\'cc\')">CCs</button>'
+        +'<button class="btn btn-sm" style="background:#5c3d0a;color:#fff;border:none;" onclick="bulkReinstate(\'ambassador\')">Ambassadors</button>'
+        +'</div></div>'
+      : '')
     <div class="filter-bar">
       ${['all','pfc','pm','cc','ambassador'].map(r=>`<div class="chip ${mFilter===r?'active':''}" onclick="mFilter='${r}';mSearch='';renderTab('members')">${r==='all'?'All':ROLE_SHORT[r]+'·'+ROLES[r].split(' ')[0]}</div>`).join('')}
     </div>
