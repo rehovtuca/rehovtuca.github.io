@@ -2,153 +2,184 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>RehoVTU — Track Your Order</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>Track Your Order — Reho Business</title>
+<link rel="icon" href="icon-192.png">
 <style>
-  *{box-sizing:border-box;margin:0;padding:0;}
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0d1b2a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
-  .card{background:#fff;border-radius:20px;padding:28px 24px;width:100%;max-width:420px;}
-  .logo{text-align:center;margin-bottom:24px;}
-  .logo-title{font-size:26px;font-weight:900;color:#0d1b2a;}
-  .logo-title span{color:#f5b944;}
-  .logo-sub{font-size:12px;color:#666;margin-top:4px;}
-  h2{font-size:18px;font-weight:800;color:#0d1b2a;margin-bottom:6px;}
-  p{font-size:13px;color:#666;margin-bottom:20px;}
-  input{width:100%;padding:12px 14px;border:2px solid #e2e8f0;border-radius:10px;font-size:14px;margin-bottom:12px;outline:none;transition:border .2s;}
-  input:focus{border-color:#f5b944;}
-  button{width:100%;padding:13px;background:#f5b944;border:none;border-radius:10px;font-size:15px;font-weight:800;color:#0d1b2a;cursor:pointer;}
-  button:active{opacity:.9;}
-  .result{margin-top:20px;}
-  .status-card{background:#f8fafc;border-radius:14px;padding:16px;margin-top:16px;}
-  .status-badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:700;margin-bottom:12px;}
-  .badge-pending{background:#fff8e0;color:#92600a;}
-  .badge-building{background:#e0f0ff;color:#1a3a8f;}
-  .badge-done{background:#d4f0e0;color:#1a6b3c;}
-  .badge-failed{background:#fee2e2;color:#b91c1c;}
-  .info-row{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #e2e8f0;font-size:13px;}
-  .info-row:last-child{border:none;}
-  .info-label{color:#666;}
-  .info-val{font-weight:700;color:#0d1b2a;}
-  .step{display:flex;gap:12px;align-items:flex-start;padding:10px 0;}
-  .step-icon{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;margin-top:2px;}
-  .step-done{background:#d4f0e0;color:#1a6b3c;}
-  .step-active{background:#f5b944;color:#0d1b2a;}
-  .step-pending{background:#e2e8f0;color:#666;}
-  .step-text{font-size:13px;}
-  .step-title{font-weight:700;}
-  .step-sub{font-size:11px;color:#666;margin-top:2px;}
-  .error{background:#fee2e2;color:#b91c1c;padding:12px;border-radius:10px;font-size:13px;margin-top:12px;text-align:center;}
-  .loading{text-align:center;color:#666;font-size:13px;margin-top:16px;}
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800&family=DM+Mono:wght@400;500&display=swap');
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'DM Sans',sans-serif;background:#0d1b2a;color:#0f172a;min-height:100vh;-webkit-font-smoothing:antialiased;}
+.wrap{max-width:440px;margin:0 auto;padding:32px 20px 50px;}
+.brand{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:28px;}
+.brand-word{font-size:22px;font-weight:900;color:#fff;letter-spacing:.3px;}
+.brand-word span{color:#e8a020;}
+h1{font-size:20px;font-weight:800;color:#fff;text-align:center;margin-bottom:6px;}
+.sub{font-size:13px;color:rgba(255,255,255,.55);text-align:center;margin-bottom:26px;line-height:1.6;}
+.card{background:#fff;border-radius:16px;padding:22px 20px;box-shadow:0 16px 40px rgba(0,0,0,.25);}
+.fl{display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:6px;text-transform:uppercase;letter-spacing:.5px;}
+.fi{width:100%;padding:13px 14px;border:1.5px solid #e2e8f0;border-radius:10px;font-size:16px;font-family:'DM Mono',monospace;letter-spacing:2px;text-transform:uppercase;color:#0f172a;text-align:center;}
+.fi:focus{outline:none;border-color:#1a3a8f;box-shadow:0 0 0 3px rgba(26,58,143,.12);}
+.btn{width:100%;padding:14px;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;border:none;margin-top:14px;background:#1a3a8f;color:#fff;font-family:inherit;transition:background .15s,transform .12s;}
+.btn:hover{background:#2d52b8;}
+.btn:active{transform:scale(.98);}
+.btn:disabled{opacity:.6;cursor:default;}
+.err{display:none;background:#fee2e2;color:#b91c1c;border-radius:8px;padding:10px 12px;font-size:12.5px;margin-top:12px;text-align:center;}
+.result{display:none;margin-top:22px;}
+.result.show,.err.show{display:block;}
+.res-head{text-align:center;margin-bottom:20px;}
+.res-name{font-size:16px;font-weight:800;color:#0f172a;}
+.res-code{font-size:11px;font-family:'DM Mono',monospace;color:#94a3b8;margin-top:2px;}
+.steps{display:flex;flex-direction:column;gap:0;margin-bottom:20px;}
+.step{display:flex;gap:12px;position:relative;padding-bottom:22px;}
+.step:last-child{padding-bottom:0;}
+.step::before{content:'';position:absolute;left:13px;top:28px;bottom:0;width:2px;background:#e2e8f0;}
+.step:last-child::before{display:none;}
+.step.done::before{background:#1a6b3c;}
+.dot{width:28px;height:28px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;background:#f1f5f9;color:#94a3b8;z-index:1;}
+.step.done .dot{background:#1a6b3c;color:#fff;}
+.step.active .dot{background:#e8a020;color:#fff;}
+.step-body{padding-top:3px;}
+.step-title{font-size:13.5px;font-weight:700;color:#0f172a;}
+.step-title.muted{color:#94a3b8;}
+.step-desc{font-size:12px;color:#64748b;margin-top:2px;line-height:1.5;}
+.support{text-align:center;font-size:12px;color:#94a3b8;margin-top:8px;}
+.support strong{color:#64748b;}
+.back{display:block;text-align:center;font-size:12px;color:rgba(255,255,255,.4);margin-top:22px;text-decoration:none;}
 </style>
 </head>
 <body>
-<div class="card">
-  <div class="logo">
-    <div class="logo-title">Reho<span>VTU</span></div>
-    <div class="logo-sub">Order Status Tracker</div>
+<div class="wrap">
+  <div class="brand">
+    <div class="brand-word">Reho<span>Business</span></div>
   </div>
-  <h2>Track Your Order</h2>
-  <p>Enter your phone number or email to check the status of your VTU site order.</p>
-  <input id="search" type="text" placeholder="Phone number or email address" oninput="clearResult()">
-  <button onclick="trackOrder()">🔍 Track Order</button>
-  <div id="result"></div>
+  <h1>Track Your Order</h1>
+  <div class="sub">Enter the tracking code from your order confirmation to see your site's build status.</div>
+
+  <div class="card">
+    <label class="fl">Tracking Code</label>
+    <input class="fi" id="code" placeholder="RB-XXXXXX" maxlength="12" autocomplete="off">
+    <button class="btn" id="btn" onclick="track()">Track My Order →</button>
+    <div class="err" id="err"></div>
+
+    <div class="result" id="result">
+      <div class="res-head">
+        <div class="res-name" id="resName"></div>
+        <div class="res-code" id="resCode"></div>
+      </div>
+      <div class="steps" id="steps"></div>
+      <div class="support">Questions? WhatsApp us on <strong>09037066499</strong></div>
+    </div>
+  </div>
+
+  <a href="index.html" class="back">← Back to RehoBusiness</a>
 </div>
 
 <script>
-const FB_URL='https://rehovtu-default-rtdb.firebaseio.com';
-
-async function fbGet(path){
-  const r=await fetch(FB_URL+'/'+path+'.json');
-  return r.json();
-}
-
-function clearResult(){document.getElementById('result').innerHTML='';}
-
-async function trackOrder(){
-  const q=document.getElementById('search').value.trim().toLowerCase();
-  if(!q){alert('Enter your phone number or email.');return;}
-  const res=document.getElementById('result');
-  res.innerHTML='<div class="loading">⏳ Searching...</div>';
-  
-  try{
-    const orders=await fbGet('orders');
-    if(!orders||!Array.isArray(orders)){
-      res.innerHTML='<div class="error">No orders found. Please try again.</div>';
-      return;
-    }
-    
-    const found=orders.filter(o=>
-      (o.phone&&o.phone.replace(/\s/g,'')===q.replace(/\s/g,''))||
-      (o.email&&o.email.toLowerCase()===q)
-    );
-    
-    if(found.length===0){
-      res.innerHTML='<div class="error">No order found with that phone/email.<br>Check your details and try again.</div>';
-      return;
-    }
-
-    const latest=found.sort((a,b)=>(b.id||'').localeCompare(a.id||''))[0];
-    
-    const statusMap={
-      pending:{label:'Payment Pending',badge:'badge-pending',icon:'⏳'},
-      confirmed:{label:'Payment Confirmed',badge:'badge-building',icon:'✅'},
-      building:{label:'Site Being Built',badge:'badge-building',icon:'🏗'},
-      done:{label:'Site Live!',badge:'badge-done',icon:'🎉'},
-    };
-    
-    let statusKey='pending';
-    if(latest.approved) statusKey='done';
-    else if(latest.paymentConfirmed) statusKey='building';
-    else if(latest.status==='confirmed') statusKey='confirmed';
-    
-    const s=statusMap[statusKey];
-    
-    const steps=[
-      {title:'Order Placed',sub:'We received your order',done:true},
-      {title:'Payment Confirmed',sub:'Your payment has been verified',done:latest.paymentConfirmed||latest.approved},
-      {title:'Site Being Built',sub:'Our team is building your site',done:latest.assignedBuilder||latest.approved,active:!!(latest.paymentConfirmed&&!latest.approved)},
-      {title:'Site Delivered',sub:'Your login details sent to your email',done:!!latest.approved},
-    ];
-
-    res.innerHTML=`
-      <div class="result">
-        <div class="status-card">
-          <span class="status-badge ${s.badge}">${s.icon} ${s.label}</span>
-          <div class="info-row"><span class="info-label">Name</span><span class="info-val">${latest.name}</span></div>
-          <div class="info-row"><span class="info-label">Phone</span><span class="info-val">${latest.phone}</span></div>
-          <div class="info-row"><span class="info-label">Order Date</span><span class="info-val">${latest.date||'—'}</span></div>
-          ${latest.sitename?`<div class="info-row"><span class="info-label">Site Name</span><span class="info-val">${latest.sitename}</span></div>`:''}
-          ${latest.siteLink?`<div class="info-row"><span class="info-label">Site Link</span><span class="info-val"><a href="${latest.siteLink}" target="_blank" style="color:#1a3a8f;">${latest.siteLink}</a></span></div>`:''}
-        </div>
-        
-        <div style="margin-top:16px;padding:0 4px;">
-          ${steps.map((step,i)=>`
-          <div class="step">
-            <div class="step-icon ${step.done?'step-done':step.active?'step-active':'step-pending'}">${step.done?'✓':step.active?'→':(i+1)}</div>
-            <div class="step-text">
-              <div class="step-title" style="color:${step.done?'#1a6b3c':step.active?'#92600a':'#999'}">${step.title}</div>
-              <div class="step-sub">${step.sub}</div>
-            </div>
-          </div>`).join('')}
-        </div>
-        
-        ${statusKey==='done'?`
-        <div style="background:#d4f0e0;border-radius:10px;padding:14px;margin-top:12px;text-align:center;">
-          <div style="font-size:24px;margin-bottom:6px;">🎉</div>
-          <div style="font-weight:800;color:#1a6b3c;">Your site is LIVE!</div>
-          <div style="font-size:12px;color:#1a6b3c;margin-top:4px;">Check your email for login details</div>
-          ${latest.siteLink?`<a href="${latest.siteLink}" target="_blank" style="display:block;margin-top:10px;background:#1a6b3c;color:#fff;padding:10px;border-radius:8px;font-weight:700;text-decoration:none;">Visit My Site →</a>`:''}
-        </div>`:''}
-
-        ${found.length>1?`<div style="font-size:12px;color:#666;text-align:center;margin-top:12px;">Showing latest of ${found.length} orders</div>`:''}
-      </div>`;
-  }catch(e){
-    res.innerHTML='<div class="error">Error loading data. Check your connection and try again.</div>';
-    console.error(e);
+const FB={
+  projectId:'rehovtu-b5f1a',
+  apiKey:'AIzaSyCCy_D8KDnLAo77ULYvPDDt79uBwCEGRUY',
+  baseUrl(){return `https://firestore.googleapis.com/v1/projects/${this.projectId}/databases/(default)/documents/rv2`;},
+  async get(col){
+    try{
+      const r=await fetch(`${this.baseUrl()}/${col}?key=${this.apiKey}`);
+      const d=await r.json();
+      if(d.fields){
+        const raw=d.fields.data?.stringValue;
+        return raw?JSON.parse(raw):null;
+      }
+      return null;
+    }catch{return null;}
   }
+};
+
+function el(id){return document.getElementById(id);}
+
+function buildSteps(order){
+  const paid = order.paymentConfirmed || order.paymentVerified || order.status==='Building' || order.status==='Done';
+  const building = order.status==='Building' || order.status==='Done';
+  const done = order.status==='Done';
+
+  const steps=[
+    {
+      title:'Order Received',
+      desc:'We have your order details.',
+      state:'done'
+    },
+    {
+      title: paid ? 'Payment Confirmed' : 'Awaiting Payment Confirmation',
+      desc: paid ? 'Your payment has been verified.' : (order.paymentMethod==='flutterwave' ? 'Verifying your Flutterwave payment.' : 'We are verifying your bank transfer — usually within a few hours.'),
+      state: paid ? 'done' : 'active'
+    },
+    {
+      title: building ? (done ? 'Site Built' : 'Building Your Site') : 'Site Build',
+      desc: done ? 'Your VTU site was built and configured.' : (building ? 'Your site is being built — usually within 48 hours.' : 'Starts once payment is confirmed.'),
+      state: done ? 'done' : (building ? 'active' : 'pending')
+    },
+    {
+      title: done ? 'Live — Login Details Sent' : 'Delivery',
+      desc: done ? 'Check your email and WhatsApp for login details.' : 'Login details are sent by email and WhatsApp once your site is live.',
+      state: done ? 'done' : 'pending'
+    }
+  ];
+  return steps;
 }
 
-document.getElementById('search').addEventListener('keydown',e=>{if(e.key==='Enter')trackOrder();});
+function renderSteps(steps){
+  el('steps').innerHTML = steps.map(s=>{
+    const cls = s.state==='done' ? 'step done' : (s.state==='active' ? 'step active' : 'step');
+    const icon = s.state==='done' ? '✓' : (s.state==='active' ? '●' : '');
+    const titleCls = s.state==='pending' ? 'step-title muted' : 'step-title';
+    return `<div class="${cls}">
+      <div class="dot">${icon}</div>
+      <div class="step-body">
+        <div class="${titleCls}">${s.title}</div>
+        <div class="step-desc">${s.desc}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function track(){
+  const codeRaw = el('code').value.trim().toUpperCase();
+  const errEl = el('err'), resultEl = el('result'), btn = el('btn');
+  errEl.classList.remove('show');
+  resultEl.classList.remove('show');
+
+  if(!codeRaw){
+    errEl.textContent = 'Please enter your tracking code.';
+    errEl.classList.add('show');
+    return;
+  }
+  const code = codeRaw.startsWith('RB-') ? codeRaw : 'RB-'+codeRaw.replace(/^RB-?/,'');
+
+  btn.disabled = true;
+  btn.textContent = 'Searching…';
+
+  try{
+    const orders = await FB.get('orders') || [];
+    const order = orders.find(o => (o.trackingCode||'').toUpperCase() === code);
+
+    if(!order){
+      errEl.textContent = "We couldn't find an order with that tracking code. Please check and try again, or WhatsApp us on 09037066499.";
+      errEl.classList.add('show');
+      btn.disabled = false;
+      btn.textContent = 'Track My Order →';
+      return;
+    }
+
+    el('resName').textContent = order.sitename || order.name || 'Your Order';
+    el('resCode').textContent = order.trackingCode;
+    renderSteps(buildSteps(order));
+    resultEl.classList.add('show');
+  }catch(e){
+    errEl.textContent = 'Something went wrong. Please try again in a moment.';
+    errEl.classList.add('show');
+  }
+  btn.disabled = false;
+  btn.textContent = 'Track My Order →';
+}
+
+el('code').addEventListener('keydown', e => { if(e.key==='Enter') track(); });
 </script>
 </body>
 </html>
